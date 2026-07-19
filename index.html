@@ -62,6 +62,10 @@
   #dodgeBtn.on.cding{animation:none;opacity:.7;box-shadow:none}
   @keyframes pulse{50%{opacity:.6}}
   #minimap{position:absolute;top:12px;right:12px;border:2px solid #5a4a33;border-radius:8px;z-index:10;opacity:.92}
+  #settingsBtn{position:fixed;bottom:12px;right:12px;width:38px;height:38px;border-radius:50%;padding:0;font-size:18px;
+    display:flex;align-items:center;justify-content:center;z-index:59;background:#241f30;border:2px solid #5a4a33;opacity:.85}
+  #settingsBtn:hover{opacity:1;transform:rotate(25deg)}
+  #settingsPanel input[type=range]{accent-color:#c9a55a}
   #coopLogoutBtn{position:absolute;top:222px;right:12px;z-index:11;display:none;font-size:12px;padding:6px 10px}
   #bossBar{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);width:min(640px,80vw);z-index:10;display:none;text-align:center;pointer-events:none}
   #bossBar .name{font-size:19px;color:#e8c060;text-shadow:0 0 12px #000;margin-bottom:4px;letter-spacing:2px}
@@ -294,6 +298,20 @@
   </div>
 </div>
 
+<button id="settingsBtn" title="ตั้งค่าเสียง">⚙</button>
+<div id="settingsPanel" class="panel" style="top:50%;left:50%;transform:translate(-50%,-50%);width:min(380px,90vw);z-index:60;display:none;padding:18px 22px">
+  <h3 style="color:#c9a55a;margin-bottom:16px">⚙ ตั้งค่าเสียง</h3>
+  <div style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>🎵 เสียง (เพลง/บรรยากาศ)</span><b id="volMusicTxt" style="color:#c9a55a">100%</b></div>
+    <input type="range" id="volMusic" min="0" max="100" value="100" style="width:100%">
+  </div>
+  <div style="margin-bottom:18px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>💥 เอฟเฟกต์ (Effect)</span><b id="volFxTxt" style="color:#c9a55a">100%</b></div>
+    <input type="range" id="volFx" min="0" max="100" value="100" style="width:100%">
+  </div>
+  <div style="text-align:right"><button id="settingsClose">ปิด</button></div>
+</div>
+
 <div id="talkBox" class="panel" style="bottom:110px;left:50%;transform:translateX(-50%);width:min(620px,92vw);z-index:55;display:none;padding:18px 24px;border-color:#5a3a6a;background:rgba(8,4,14,.96)">
   <div style="font-size:12px;color:#8a60a0;letter-spacing:3px;margin-bottom:6px">— เ ง า ก ล่ า ว —</div>
   <div id="talkText" style="font-size:17px;line-height:1.7;color:#d8c8e8;min-height:40px"></div>
@@ -349,12 +367,22 @@ const hash2=(x,y)=>{let h=(x*374761393+y*668265263)|0;h=(h^(h>>13))*1274126177|0
 const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e4?(n/1e3).toFixed(1)+'k':Math.floor(n).toLocaleString();
 
 // ---------- Tiny SFX (WebAudio) ----------
-let AC=null, muted=false;
+let AC=null, muted=false, fxBus=null, musicBus=null;
+let fxVol=clamp(parseFloat(localStorage.getItem('soulsro_fxVol'))||1,0,1);
+let musicVol=clamp(parseFloat(localStorage.getItem('soulsro_musicVol'))||1,0,1);
+function ensureAC(){ // สร้าง AudioContext + บัสเสียงหลัก (fx/music) แบบขี้เกียจ ครั้งเดียว — ให้ sfx/BGM/chirp ทุกจุดวิ่งผ่านบัสนี้เพื่อคุมระดับเสียงแยกกันได้
+ AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+ if(!fxBus){fxBus=AC.createGain();fxBus.gain.value=fxVol;fxBus.connect(AC.destination)}
+ if(!musicBus){musicBus=AC.createGain();musicBus.gain.value=musicVol;musicBus.connect(AC.destination)}
+ return AC;
+}
+function setFxVol(v){fxVol=clamp(v,0,1);localStorage.setItem('soulsro_fxVol',fxVol);if(fxBus)fxBus.gain.value=fxVol}
+function setMusicVol(v){musicVol=clamp(v,0,1);localStorage.setItem('soulsro_musicVol',musicVol);if(musicBus)musicBus.gain.value=musicVol}
 function sfx(type){
   if(muted)return;
   try{
-    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
-    const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);
+    ensureAC();
+    const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(fxBus);
     const t=AC.currentTime;let f=200,d=.08,v=.05,w='square';
     if(type==='hit'){f=140;d=.07;v=.06}
     else if(type==='swing'){f=320;w='sawtooth';d=.05;v=.03}
@@ -374,40 +402,48 @@ function sfx(type){
     o.start(t);o.stop(t+d);
   }catch(e){}
 }
-// ---------- บรรยากาศเสียง: BGM เบาๆตอนกลางวัน + เสียงนกร้อง / เสียงจิ้งหรีดยามค่ำคืน (ไม่มี BGM ตอนกลางคืน) ----------
-let ambientNodes=null, birdT=0, cricketT=0;
+// ---------- บรรยากาศเสียง: BGM สดใสสไตล์ RPG ตอนกลางวัน + เสียงนกร้อง / เสียงจิ้งหรีดยามค่ำคืน (ไม่มี BGM ตอนกลางคืน) ----------
+let ambientNodes=null, birdT=0, cricketT=0, bgmArpT=0, bgmStep=0;
+const BGM_ARP=[261.63,329.63,392.00,523.25,659.25,523.25,392.00,329.63]; // C4-E4-G4-C5-E5-C5-G4-E4 อาร์เพจจิโอเมเจอร์วนขึ้นลง ฟังสดใสแบบธีมโอเวอร์เวิลด์ RPG
 function startAmbientBGM(){
  if(muted||ambientNodes)return;
  try{
-  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
-  const g=AC.createGain();g.gain.value=0;g.connect(AC.destination);
-  g.gain.linearRampToValueAtTime(.022,AC.currentTime+2.5); // เฟดเข้าเบาๆ ไม่ให้โผล่มาดังกะทันหัน
-  const o1=AC.createOscillator();o1.type='sine';o1.frequency.value=220;
-  const o2=AC.createOscillator();o2.type='sine';o2.frequency.value=277.18; // เมเจอร์เทิร์ด ให้ฟังดูอุ่นๆไม่น่ากลัว
-  const lfo=AC.createOscillator();lfo.type='sine';lfo.frequency.value=.07;
-  const lfoGain=AC.createGain();lfoGain.gain.value=6;
-  lfo.connect(lfoGain);lfoGain.connect(o1.frequency);
-  o1.connect(g);o2.connect(g);
-  o1.start();o2.start();lfo.start();
-  ambientNodes={o1,o2,lfo,g};
+  ensureAC();
+  const g=AC.createGain();g.gain.value=0;g.connect(musicBus);
+  g.gain.linearRampToValueAtTime(1,AC.currentTime+2); // มาสเตอร์เกน (ความดังจริงคุมที่โน้ตแต่ละตัวใน playArpNote)
+  ambientNodes={g};bgmArpT=0;bgmStep=0;
  }catch(e){}
 }
 function stopAmbientBGM(){
  if(!ambientNodes)return;
- const {o1,o2,lfo,g}=ambientNodes;
+ const node=ambientNodes;ambientNodes=null;
  try{
-  g.gain.linearRampToValueAtTime(0,AC.currentTime+1.5);
-  setTimeout(()=>{try{o1.stop();o2.stop();lfo.stop()}catch(e){}},1600);
+  node.g.gain.linearRampToValueAtTime(0,AC.currentTime+1);
+  setTimeout(()=>{try{node.g.disconnect()}catch(e){}},1100);
  }catch(e){}
- ambientNodes=null;
+}
+function playArpNote(){
+ if(!ambientNodes)return;
+ try{
+  const t=AC.currentTime, f=BGM_ARP[bgmStep%BGM_ARP.length];
+  bgmStep++;
+  const o=AC.createOscillator(),ng=AC.createGain(); // โน้ตหลัก เสียงดีดใส (triangle)
+  o.type='triangle';o.frequency.value=f;o.connect(ng);ng.connect(ambientNodes.g);
+  ng.gain.setValueAtTime(0,t);ng.gain.linearRampToValueAtTime(.045,t+.03);ng.gain.exponentialRampToValueAtTime(.001,t+.55);
+  o.start(t);o.stop(t+.6);
+  const o2=AC.createOscillator(),ng2=AC.createGain(); // เสียงรองต่ำกว่า 1 ออกเทฟ ให้ฟังอิ่มขึ้นนิดหน่อย
+  o2.type='sine';o2.frequency.value=f/2;o2.connect(ng2);ng2.connect(ambientNodes.g);
+  ng2.gain.setValueAtTime(0,t);ng2.gain.linearRampToValueAtTime(.018,t+.03);ng2.gain.exponentialRampToValueAtTime(.001,t+.55);
+  o2.start(t);o2.stop(t+.6);
+ }catch(e){}
 }
 function chirpBird(){
  if(muted)return;
  try{
-  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  ensureAC();
   const t=AC.currentTime;
   for(let i=0;i<3;i++){
-   const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);
+   const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(musicBus);
    o.type='sine';
    const f=1800+Math.random()*1000, st=t+i*.08;
    o.frequency.setValueAtTime(f,st);o.frequency.exponentialRampToValueAtTime(f*1.4,st+.05);
@@ -419,10 +455,10 @@ function chirpBird(){
 function chirpCricket(){
  if(muted)return;
  try{
-  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  ensureAC();
   const t=AC.currentTime;
   for(let i=0;i<4;i++){
-   const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);
+   const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(musicBus);
    o.type='square';
    const st=t+i*.09;
    o.frequency.setValueAtTime(4200,st);
@@ -435,6 +471,7 @@ function updateAmbience(dt){
  if(game.state!=='play'){if(ambientNodes)stopAmbientBGM();return}
  if(game.phase==='day'){
   if(!ambientNodes&&!muted)startAmbientBGM();
+  if(ambientNodes){bgmArpT-=dt;if(bgmArpT<=0){bgmArpT=.4;playArpNote()}}
   birdT-=dt;
   if(birdT<=0){birdT=rnd(3,8);chirpBird()}
  }else{
@@ -3816,6 +3853,17 @@ function handleKey(k){
 document.getElementById('cpClose').onclick=()=>{if(coop()&&net.gather){readyUp();return}closeOverlays()}; // กันคลิก "ปิด" หลุดออกจากขั้นตอนพร้อมกันตอนรวมพลกองไฟ (ปุ่มนี้ควรถูกซ่อนอยู่แล้วตอนรวมพล แต่กันเหนียวไว้)
 document.getElementById('cpReady').onclick=readyUp;
 document.getElementById('invClose').onclick=closeOverlays;
+// ---------- ตั้งค่าเสียง (แยกวอลุ่ม เพลง/บรรยากาศ vs เอฟเฟกต์) ----------
+(function(){
+ const volMusic=document.getElementById('volMusic'), volFx=document.getElementById('volFx');
+ const volMusicTxt=document.getElementById('volMusicTxt'), volFxTxt=document.getElementById('volFxTxt');
+ volMusic.value=Math.round(musicVol*100);volMusicTxt.textContent=volMusic.value+'%';
+ volFx.value=Math.round(fxVol*100);volFxTxt.textContent=volFx.value+'%';
+ volMusic.oninput=()=>{setMusicVol(volMusic.value/100);volMusicTxt.textContent=volMusic.value+'%'};
+ volFx.oninput=()=>{setFxVol(volFx.value/100);volFxTxt.textContent=volFx.value+'%';sfx('hit')}; // เล่นตัวอย่างเสียงให้ได้ยินระดับที่ปรับ
+ document.getElementById('settingsBtn').onclick=()=>{document.getElementById('settingsPanel').style.display='block'};
+ document.getElementById('settingsClose').onclick=()=>{document.getElementById('settingsPanel').style.display='none'};
+})();
 document.querySelectorAll('#cpTabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.getElementById('deathBtn').onclick=()=>{
  document.getElementById('deathScreen').style.display='none';
