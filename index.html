@@ -192,6 +192,7 @@
     <b>E</b> คุยกับเช็คพอยท์ (อัพเลเวล/อาชีพ/คราฟ/วาร์ป/พัก) &nbsp;•&nbsp; <b>I</b> กระเป๋า &nbsp;•&nbsp; <b>B</b> บอทออโต้ฟาร์ม &nbsp;•&nbsp; <b>Esc</b> ปิดเมนู<br>
     เก็บ Job Lv.10 แล้วทำเควสเปลี่ยนอาชีพ: นักรบ / นักเวท / นักธนู / นักบวช / ซัมมอนเนอร์ (ขวดวิญญาณ +1 ทุก 5 Job Lv)<br>
     Job Lv.50 เต็มขั้น + ปราบบอสแล้ว 3 ตัว → เควสคลาส 2 ที่ NPC เดิม ปลดล็อก <b>Q</b> สกิลใหม่ + <b>T</b> อัลติเมท (สกิล [R] เดิมยังอยู่)<br>
+    Co-op: เพื่อนล้มลง? เข้าใกล้แล้วกดค้าง <b>F</b> นาน 3 วิเพื่อชุบ (ฟื้นมา 50% เลือด/สตามิน่า)<br>
     เลเวลอัพได้ที่เช็คพอยท์เท่านั้น • ของแรร์ดรอป 0.01% • บอสทุกตัวมีกิมมิค — โชคดี ผู้หลงทาง
   </div>
 </div>
@@ -1277,7 +1278,7 @@ function buildSnap(){
  const eo=energyOrbs.map(o=>[Math.round(o.x),Math.round(o.y)]);
  const cs=chests.map(c=>[nid(c),Math.round(c.x),Math.round(c.y),c.trap?1:0,c.opened?1:0,c.secret?1:0,c.item||'']);
  // ผู้เล่นคนอื่น (ยกเว้นผู้รับ — client จะ merge เอง)
- const rem={};for(const k in net.remote){const r=net.remote[k];rem[k]={x:Math.round(r.x),y:Math.round(r.y),face:r.face,hp:r.hp,mhp:r.mhp,job:r.job,lvl:r.lvl,atkT:r.atkT,rollT:r.rollT,mv:r.mv,name:r.name,last:r.last}}
+ const rem={};for(const k in net.remote){const r=net.remote[k];rem[k]={x:Math.round(r.x),y:Math.round(r.y),face:r.face,hp:r.hp,mhp:r.mhp,job:r.job,lvl:r.lvl,atkT:r.atkT,rollT:r.rollT,mv:r.mv,name:r.name,last:r.last,downed:r.downed?1:0}}
  return {t:'snap',e:es,b:bs,p:ps,z:zs,d:ds,o:eo,c:cs,
   host:localPlayerState(),rem,
   ph:game.phase,dw:+(game.dw||0).toFixed(2),clk:Math.round(game.clock||0),
@@ -1383,7 +1384,7 @@ function drawRemotePlayers(){
   cx.fillStyle='#000';cx.fillText(r.name||'?',sx+1,sy-24);cx.fillStyle=down?'#ff8080':'#8fd0ff';cx.fillText((down?'💀 ':'')+(r.name||'?'),sx,sy-25);
   cx.textAlign='start';
   if(down){
-   cx.font='10px sans-serif';cx.textAlign='center';cx.fillStyle='#ffd040';cx.fillText('[กดค้าง E ใกล้ๆ เพื่อชุบ]',sx,sy+22);cx.textAlign='start';
+   cx.font='10px sans-serif';cx.textAlign='center';cx.fillStyle='#ffd040';cx.fillText('[กดค้าง F ใกล้ๆ เพื่อชุบ]',sx,sy+22);cx.textAlign='start';
   }else{
    cx.fillStyle='#000a';cx.fillRect(sx-14,sy-21,28,4);
    cx.fillStyle='#40c040';cx.fillRect(sx-13,sy-20,26*Math.max(0,r.hp/(r.mhp||1)),2);
@@ -1476,7 +1477,7 @@ function newPlayer(){
   flaskMax:3, flasks:3, lastCP:0, discovered:[0], killedBosses:[],
   job:'novice', jobLvl:1, jobExp:0, killCount:{}, skillCd:0, frenzyT:0,
   job2:false, skill2Cd:0, ultCd:0, ultT:0, expLedger:0,
-  downed:false, downedInBoss:false,
+  downed:false, downedInBoss:false, downedBossRally:null,
   util:null, pet:null, petQuest:{step:0,k0:0}, revealedBosses:[], secrets:[], finalDone:0,
   bootsT:0, cloakT:0, frozenT:0, safeX:0, safeY:0,
   atkT:0, atkCd:0, rollT:0, rollDir:0, ifr:0, hurtT:0, regenDelay:0,
@@ -1612,26 +1613,31 @@ function playerDie(){
 // ---------- ล้มลง (co-op ไม่ฮาร์ดคอร์): โลกยังเดินต่อ (ดู loop) รอเพื่อนชุบ 3 วิ หรือเลือกฟื้นที่กองไฟเอง (เว้นแต่ล้มกลางลานบอสที่ประตูปิด) ----------
 function enterDowned(){
  P.downed=true;
- const inBoss=bosses.some(b=>b.active&&dist(P,b)<16*TILE);
- P.downedInBoss=inBoss;
- if(P.exp>0){ // วิญญาณที่ล้มกลางบอสไปตกไว้หน้าทางเข้าลาน (ในลานอาจเข้าไปเก็บคืนไม่ได้ถ้าประตูปิด/บอสรีเซ็ต) ส่วนล้มทั่วไปตกที่จุดล้มตามปกติ
-  const b=inBoss?bosses.find(x=>x.active&&dist(P,x)<16*TILE):null;
-  const bd=b?BOSSDEF.find(x=>x.id===b.bdef.id):null;
-  const dropAt=(bd&&bd.rally)?bd.rally:{x:P.x,y:P.y};
-  bloodstain={x:dropAt.x,y:dropAt.y,exp:P.exp};
- }
- P.exp=0;
- document.getElementById('downedInfo').textContent=inBoss?'ล้มลงกลางสมรภูมิ! ประตูลานปิดสนิท — รอเพื่อนมาชุบเท่านั้น':'ล้มลง! รอเพื่อนมาชุบ หรือเลือกฟื้นที่กองไฟเองก็ได้';
+ document.getElementById('prompt').style.display='none';
+ const b=bosses.find(x=>x.active&&dist(P,x)<16*TILE);
+ P.downedInBoss=!!b;
+ // วิญญาณ "ยังไม่ตก" ตอนล้ม — ติดตัวไว้เฉยๆ เผื่อเพื่อนชุบทัน (ชุบสำเร็จ = ไม่เสียอะไรเลย) จะตกก็ต่อเมื่อเลือกไปเกิดใหม่เองหรือโดนบังคับฟื้นยกทีมเท่านั้น (ดู respawnAtBonfire)
+ // เก็บจุดดรอปไว้ล่วงหน้า เผื่อบอสรีเซ็ต/ตัวแปรเปลี่ยนไปก่อนถึงตอนกดฟื้นจริง
+ if(b){
+  const bd=BOSSDEF.find(x=>x.id===b.bdef.id);
+  P.downedBossRally=(bd&&bd.rally)?{x:bd.rally.x,y:bd.rally.y}:null;
+ }else P.downedBossRally=null;
+ document.getElementById('downedInfo').textContent=P.downedInBoss?'ล้มลงกลางสมรภูมิ! ประตูลานปิดสนิท — รอเพื่อนมาชุบเท่านั้น':'ล้มลง! รอเพื่อนมาชุบ หรือเลือกฟื้นที่กองไฟเองก็ได้ (แต่วิญญาณจะหล่นถ้าเลือกฟื้นเอง)';
  document.getElementById('downedProgress').textContent='';
- document.getElementById('btnDownedBonfire').style.display=inBoss?'none':'inline-block';
+ document.getElementById('btnDownedBonfire').style.display=P.downedInBoss?'none':'inline-block';
  document.getElementById('downedScreen').style.display='flex';
 }
-function respawnAtBonfire(){ // ใช้ทั้งตอนกดฟื้นเองและตอนโดนบังคับฟื้นยกทีม
+function respawnAtBonfire(){ // ใช้ทั้งตอนกดฟื้นเองและตอนโดนบังคับฟื้นยกทีม — วิญญาณหล่น ณ จุดนี้เท่านั้น (ชุบสำเร็จไม่เสียวิญญาณ)
+ if(P.exp>0){
+  const dropAt=P.downedBossRally||{x:P.x,y:P.y};
+  bloodstain={x:dropAt.x,y:dropAt.y,exp:P.exp};
+  P.exp=0;
+ }
  const c=CPS[P.lastCP];
  P.x=c.x*TILE+16;P.y=c.y*TILE+16;P.vx=P.vy=0;
  P.hp=maxHp();P.st=maxSt();P.flasks=P.flaskMax;
  P.poisonT=P.burnT=P.slowT=0;
- P.downed=false;P.downedInBoss=false;
+ P.downed=false;P.downedInBoss=false;P.downedBossRally=null;
  document.getElementById('downedScreen').style.display='none';
  saveGame();
 }
@@ -2956,34 +2962,40 @@ function updatePlayer(dt){
  }
  // ---- ระบบโต้ตอบ [E]: เลือกสิ่งที่ใกล้ที่สุด ----
  const pr=document.getElementById('prompt');
- nearCP=null;nearChest=null;nearPortal=false;nearPet=false;nearDowned=null;
+ nearCP=null;nearChest=null;nearPortal=false;nearPet=false;
  let bestD=70,label='';
- if(coop())for(const k in net.remote){ // เพื่อนล้มอยู่ใกล้ๆ — สำคัญสุด แซงคิวก่อนอย่างอื่น
-  const r=net.remote[k];if(!r||!r.downed)continue;
-  const dd=Math.hypot(P.x-r.x,P.y-r.y);
-  if(dd<Math.min(bestD,55)){bestD=dd;nearDowned=k;label=`[กดค้าง E] ชุบ ${r.name||'เพื่อน'}`}
- }
  for(const c of CPS){
   const dd=Math.hypot(P.x-(c.x*TILE+16),P.y-(c.y*TILE+16));
-  if(dd<bestD){bestD=dd;nearDowned=null;nearCP=c;label=`[E] คุยกับ ${c.npc} — ${c.n}`}
+  if(dd<bestD){bestD=dd;nearCP=c;label=`[E] คุยกับ ${c.npc} — ${c.n}`}
  }
  for(const ch of chests){
   if(ch.opened)continue;
   const dd=dist(P,ch);
-  if(dd<Math.min(bestD,55)){bestD=dd;nearDowned=null;nearCP=null;nearChest=ch;label='[E] เปิดหีบสมบัติ…?'}
+  if(dd<Math.min(bestD,55)){bestD=dd;nearCP=null;nearChest=ch;label='[E] เปิดหีบสมบัติ…?'}
  }
  if(petNPC){
   const dd=dist(P,petNPC);
-  if(dd<Math.min(bestD,60)){bestD=dd;nearDowned=null;nearCP=null;nearChest=null;nearPet=true;label='[E] เข้าไปดูสัตว์ตัวน้อยที่ส่งเสียงครวญคราง'}
+  if(dd<Math.min(bestD,60)){bestD=dd;nearCP=null;nearChest=null;nearPet=true;label='[E] เข้าไปดูสัตว์ตัวน้อยที่ส่งเสียงครวญคราง'}
  }
  if(!P.finalDone&&!game.finalFight&&[0,1,2,3,4,5].every(i=>effDead().includes(i))){
   const dd=Math.hypot(P.x-(WC*TILE+16),P.y-((WC-6)*TILE+16));
-  if(dd<Math.min(bestD,70)){bestD=dd;nearDowned=null;nearCP=null;nearChest=null;nearPet=false;nearPortal=true;label='[E] ก้าวเข้าสู่เงามืด…'}
+  if(dd<Math.min(bestD,70)){bestD=dd;nearCP=null;nearChest=null;nearPet=false;nearPortal=true;label='[E] ก้าวเข้าสู่เงามืด…'}
  }
+ // เพื่อนล้มอยู่ใกล้ๆ (co-op) — แยกอิสระจากคิว [E] ด้านบนโดยสิ้นเชิง ใช้ปุ่ม [F] ต่างหาก (เดิมใช้ E ค้าง แต่ชนกับ E เปิดหีบ/คุยของปกติ)
+ nearDowned=null;
+ if(coop()){
+  let bd2=55;
+  for(const k in net.remote){
+   const r=net.remote[k];if(!r||!r.downed)continue;
+   const dd=Math.hypot(P.x-r.x,P.y-r.y);
+   if(dd<bd2){bd2=dd;nearDowned=k}
+  }
+ }
+ if(nearDowned&&!label)label=`[กดค้าง F] ชุบ ${(net.remote[nearDowned]&&net.remote[nearDowned].name)||'เพื่อน'}`;
  if(label&&!game.overlay){pr.style.display='block';pr.textContent=label}
  else pr.style.display='none';
- // ชุบเพื่อนที่ล้ม (กดค้าง E นาน 3 วิ ต่อเนื่อง — หลุดระยะหรือปล่อยปุ่ม = ยกเลิก)
- if(nearDowned&&keys['e']&&!game.overlay){
+ // ชุบเพื่อนที่ล้ม (กดค้าง F นาน 3 วิ ต่อเนื่อง — หลุดระยะหรือปล่อยปุ่ม = ยกเลิก)
+ if(nearDowned&&keys['f']&&!game.overlay){
   if(reviveTargetKey!==nearDowned){reviveTargetKey=nearDowned;reviveChannelT=0;reviveTickAcc=0}
   reviveChannelT+=dt;reviveTickAcc+=dt;
   if(reviveTickAcc>=.15){reviveTickAcc=0;sendRevive(reviveTargetKey,{t:'revProgress',frac:Math.min(1,reviveChannelT/3)})}
@@ -3209,6 +3221,9 @@ function updateProjs(dt){
    zones.splice(i,1);
   }
  }
+}
+// เอฟเฟกต์จุดสี/ตัวเลขดาเมจ: ต้องเดินเสมอทั้ง host และ client (เดิมอยู่ใน updateProjs ซึ่ง client ไม่เรียก ทำให้เอฟเฟกต์ค้างเต็มแมพฝั่งเพื่อนไม่มีวันหาย)
+function updateFxTexts(dt){
  for(let i=fx.length-1;i>=0;i--){const f=fx[i];f.x+=f.vx*dt;f.y+=f.vy*dt;f.t-=dt;if(f.t<=0)fx.splice(i,1)}
  for(let i=dmgTexts.length-1;i>=0;i--){const t=dmgTexts[i];t.y-=34*dt;t.t-=dt;if(t.t<=0)dmgTexts.splice(i,1)}
 }
@@ -4693,6 +4708,28 @@ function render(){
   cx.beginPath();cx.arc(sx,sy,10,0,TAU);cx.fill();
   cx.fillStyle='rgba(80,200,255,.8)';cx.beginPath();cx.arc(sx,sy,5,0,TAU);cx.fill();
  }
+ // ---- จุดรวมพลหน้าห้องบอส (co-op เท่านั้น — ต้องมากันครบก่อนถึงจะวาร์ปเข้าลานได้ ดู updateBossRally) ----
+ if(coop()){
+  const dead=effDead();
+  for(const bd of BOSSDEF){
+   if(dead.includes(bd.id)||!bd.rally)continue;
+   const b=bosses.find(x=>x.type===bd.type);
+   if(b&&b.active)continue; // บอสตื่นแล้ว ไม่ต้องรวมพลอีก
+   const [sx,sy]=W2S(bd.rally.x,bd.rally.y);
+   if(sx<-60||sy<-60||sx>cv.width+60||sy>cv.height+60)continue;
+   const pulse=0.5+0.5*Math.sin(game.time*2.4);
+   cx.save();
+   cx.strokeStyle=`rgba(255,180,60,${0.5+0.35*pulse})`;cx.lineWidth=3;
+   cx.beginPath();cx.arc(sx,sy,26+pulse*6,0,TAU);cx.stroke();
+   cx.strokeStyle=`rgba(255,220,120,${0.3+0.3*pulse})`;cx.lineWidth=1.5;
+   cx.beginPath();cx.arc(sx,sy,14,0,TAU);cx.stroke();
+   cx.font='11px sans-serif';cx.textAlign='center';
+   cx.fillStyle='#000';cx.fillText('⚔ จุดรวมพล',sx+1,sy-31);
+   cx.fillStyle='#ffd060';cx.fillText('⚔ จุดรวมพล',sx,sy-32);
+   cx.textAlign='start';
+   cx.restore();
+  }
+ }
  // ---- ของดรอป ----
  for(const d of drops){
   const [sx,sy]=W2S(d.x,d.y);
@@ -5001,11 +5038,12 @@ function loop(ts){
   game.sandstorm=Math.max(0,(game.sandstorm||0)-dt);
   if(!isClient()){updateDayCycle(dt);updateWeather(dt)} // client รับ phase/สภาพอากาศ จาก host
   else if(game.weather)game.weather.flash=Math.max(0,game.weather.flash-dt*3); // client: ฟ้าแลบเฟดเอง
-  if(game.state==='play'&&!game.overlay)updatePlayer(dt); // ตัวเองขยับ/ทำอะไรได้เฉพาะตอนไม่ตายและไม่มีเมนูเปิดอยู่
+  if(game.state==='play'&&!game.overlay&&!P.downed)updatePlayer(dt); // ตัวเองขยับ/ทำอะไรได้เฉพาะตอนไม่ตาย(ไม่ล้ม)และไม่มีเมนูเปิดอยู่
   updateSummons(dt);
   updatePet(dt);
   updatePings(dt);
   updateBossRally(dt);
+  updateFxTexts(dt);
   if(!isClient()){ // host/เดี่ยว: คุมโลก | client: รับ snapshot มาวาด
    for(let i=enemies.length-1;i>=0;i--)updateEnemy(enemies[i],dt);
    for(const b of [...bosses])updateBoss(b,dt);
