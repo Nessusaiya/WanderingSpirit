@@ -35,6 +35,13 @@
 
   /* ---------- HUD ---------- */
   #hud{position:absolute;top:12px;left:12px;z-index:10;pointer-events:none}
+  #flaskBtn{position:absolute;top:-6px;left:290px;width:44px;height:44px;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%,#4ad088,#1a6a3a 70%);border:2px solid #7ae8a8;
+    color:#fff;font-size:21px;display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;cursor:pointer;padding:0;box-shadow:0 0 10px rgba(74,208,136,.5)}
+  #flaskBtn:hover{transform:scale(1.08);box-shadow:0 0 16px rgba(74,208,136,.8)}
+  #flaskBtn:disabled{opacity:.35;cursor:default;filter:grayscale(1);box-shadow:none;transform:none}
+  #flaskBtn b{position:absolute;bottom:-5px;right:-3px;background:#0008;border:1px solid #3a3248;border-radius:9px;font-size:11px;padding:0 5px;color:#e8e0d0}
   .bar{width:280px;height:16px;background:#1a1420;border:2px solid #3a3248;border-radius:8px;margin-bottom:5px;overflow:hidden;position:relative}
   .bar .fill{height:100%;border-radius:5px;transition:width .12s}
   #hpFill{background:linear-gradient(#c04040,#902828)}
@@ -48,6 +55,7 @@
   #botTag{position:absolute;top:44px;left:50%;transform:translateX(-50%);font-size:14px;color:#4ad0ff;text-shadow:0 0 10px rgba(74,208,255,.6);z-index:10;display:none;animation:pulse 1.2s infinite}
   @keyframes pulse{50%{opacity:.45}}
   #minimap{position:absolute;top:12px;right:12px;border:2px solid #5a4a33;border-radius:8px;z-index:10;opacity:.92}
+  #coopLogoutBtn{position:absolute;top:222px;right:12px;z-index:11;display:none;font-size:12px;padding:6px 10px}
   #bossBar{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);width:min(640px,80vw);z-index:10;display:none;text-align:center;pointer-events:none}
   #bossBar .name{font-size:19px;color:#e8c060;text-shadow:0 0 12px #000;margin-bottom:4px;letter-spacing:2px}
   #bossBar .bar{width:100%;height:14px}
@@ -96,6 +104,11 @@
   #deathScreen{position:absolute;inset:0;z-index:45;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(10,4,4,.85);text-align:center}
   #deathScreen h1{font-size:58px;color:#a02020;text-shadow:0 0 40px #600;letter-spacing:8px;margin-bottom:14px}
   #deathScreen p{color:#c0a8a8;margin-bottom:22px;font-size:16px;line-height:1.7}
+  #downedScreen{position:absolute;inset:0;z-index:44;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(10,4,4,.7);text-align:center;pointer-events:none}
+  #downedScreen h1{font-size:44px;color:#c04040;text-shadow:0 0 30px #500;letter-spacing:6px;margin-bottom:10px}
+  #downedScreen p{color:#d0b0b0;margin-bottom:6px;font-size:16px;max-width:520px;line-height:1.6}
+  #downedProgress{color:#7ad080;font-size:15px;min-height:22px;margin-bottom:16px}
+  #btnDownedBonfire{pointer-events:auto}
   #vignette{position:absolute;inset:0;pointer-events:none;z-index:5;box-shadow:inset 0 0 180px rgba(0,0,0,.85)}
 </style>
 </head>
@@ -105,6 +118,7 @@
 
 <div id="hud" style="display:none">
   <div class="bar"><div class="fill" id="hpFill"></div><span id="hpTxt"></span></div>
+  <button id="flaskBtn" title="ขวดวิญญาณ [1]">🧪<b id="flaskCount">3</b></button>
   <div class="bar" style="width:220px;height:12px"><div class="fill" id="stFill"></div></div>
   <div class="bar" id="expBar"><div class="fill" id="expFill"></div></div>
   <div class="bar" id="petBar" style="width:150px;height:7px;display:none"><div class="fill" id="petFill" style="background:linear-gradient(#e8c060,#b08830)"></div></div>
@@ -113,13 +127,14 @@
 <div id="biomeName"></div>
 <div id="botTag">⚙ บอทออโต้ฟาร์มทำงาน [B ปิด]</div>
 <canvas id="minimap" width="200" height="200" style="display:none"></canvas>
+<button id="coopLogoutBtn" class="danger">🚪 ออกจากเกม</button>
 <div id="bossBar"><div class="name" id="bossName"></div><div class="bar"><div class="fill" id="bossFill"></div></div>
   <div class="bar" style="height:6px;margin-top:3px"><div class="fill" id="bossStFill" style="background:linear-gradient(#ffe060,#c0982f)"></div></div></div>
 <div id="prompt"></div>
 <div id="toasts"></div>
 <div id="announce"></div>
 <div id="hotbar" style="display:none">
-  <div class="slot">ขวดวิญญาณ [F]<b id="flaskSlot">3/3</b></div>
+  <div class="slot">ขวดวิญญาณ [1]<b id="flaskSlot">3/3</b></div>
   <div class="slot">ไอเท็มหีบ [E]<b id="utilSlot">-</b></div>
   <div class="slot">สกิล [R]<b id="skillSlot">-</b></div>
   <div class="slot">กลิ้งหลบ<b>Space</b></div>
@@ -172,7 +187,7 @@
 
   <div class="ctrl">
     <b>WASD/ลูกศร</b> เดิน &nbsp;•&nbsp; <b>เมาส์</b> หันหน้า/เล็ง &nbsp;•&nbsp; <b>คลิกซ้าย/J</b> โจมตี (กดค้าง=ชาร์จท่าพิเศษ) &nbsp;•&nbsp; <b>คลิกขวา</b> โจมตีหนัก<br>
-    <b>Space</b> กลิ้งหลบ &nbsp;•&nbsp; <b>F</b> ขวดวิญญาณ &nbsp;•&nbsp; <b>R</b> สกิล &nbsp;•&nbsp; <b>กดสกรอลล์เมาส์</b> ปักหมุด (เพื่อนในทีมเห็นด้วย)<br>
+    <b>Space</b> กลิ้งหลบ &nbsp;•&nbsp; <b>1</b> ขวดวิญญาณ (หรือคลิกไอคอนข้างเลือด) &nbsp;•&nbsp; <b>R</b> สกิล &nbsp;•&nbsp; <b>กดสกรอลล์เมาส์</b> ปักหมุด (เพื่อนในทีมเห็นด้วย)<br>
     <b>E</b> คุย/เปิดหีบ/ใช้ไอเท็มหีบ &nbsp;•&nbsp; ระวังหลุมลึกกับหีบกับดัก… และลองฟันกำแพงแปลกๆ ดู<br>
     <b>E</b> คุยกับเช็คพอยท์ (อัพเลเวล/อาชีพ/คราฟ/วาร์ป/พัก) &nbsp;•&nbsp; <b>I</b> กระเป๋า &nbsp;•&nbsp; <b>B</b> บอทออโต้ฟาร์ม &nbsp;•&nbsp; <b>Esc</b> ปิดเมนู<br>
     เก็บ Job Lv.10 แล้วทำเควสเปลี่ยนอาชีพ: นักรบ / นักเวท / นักธนู / นักบวช / ซัมมอนเนอร์ (ขวดวิญญาณ +1 ทุก 5 Job Lv)<br>
@@ -295,6 +310,13 @@
   <h1 id="deathTitle">ท่านสิ้นชีพแล้ว</h1>
   <p id="deathText"></p>
   <button id="deathBtn">ฟื้นคืนชีพ</button>
+</div>
+
+<div id="downedScreen">
+  <h1>ล้มลง!</h1>
+  <p id="downedInfo"></p>
+  <div id="downedProgress"></div>
+  <button id="btnDownedBonfire" class="danger">🔥 ฟื้นที่กองไฟ (ยอมแพ้ ไม่รอเพื่อนชุบ)</button>
 </div>
 
 <script>
@@ -930,7 +952,7 @@ function setupHostConn(conn){
  conn.on('open',()=>{
   net.conns.push(conn);
   conn._pid='p'+(++NID);
-  net.remote[conn._pid]={x:P?P.x:0,y:P?P.y:0,face:0,hp:1,mhp:1,job:'novice',lvl:1,name:'?',last:game.time,conn}; // P เป็น null ได้ถ้าเพื่อนต่อเข้ามาตอนโฮสต์ยังนั่งรอในล็อบบี้ (ยังไม่กด "เริ่มเกม") — ค่านี้แค่ placeholder เดี๋ยว 'join'/'ps' จะส่งตำแหน่งจริงมาทับ
+  net.remote[conn._pid]={x:P?P.x:0,y:P?P.y:0,face:0,hp:1,mhp:1,job:'novice',lvl:1,name:'?',last:Date.now()/1000,conn}; // P เป็น null ได้ถ้าเพื่อนต่อเข้ามาตอนโฮสต์ยังนั่งรอในล็อบบี้ (ยังไม่กด "เริ่มเกม") — ค่านี้แค่ placeholder เดี๋ยว 'join'/'ps' จะส่งตำแหน่งจริงมาทับ
   conn.send({t:'welcome',id:conn._pid,mode:game.mode||'norm',started:game.state==='play',openedSecrets:[...hostOpenedSecrets]});
   updateLobby();
  });
@@ -954,8 +976,8 @@ function sendHost(msg){if(net.conns[0]){try{net.conns[0].send(msg)}catch(e){}}}
 
 // ── ข้อมูลเข้า host ──
 function onHostData(conn,d){
- const r=net.remote[conn._pid];if(!r)return;r.last=game.time;
- if(d.t==='ps'){Object.assign(r,d.s)}
+ const r=net.remote[conn._pid];if(!r)return;r.last=Date.now()/1000;
+ if(d.t==='ps'){Object.assign(r,d.s);r.last=Date.now()/1000} // เขียนทับ last ที่ client ฝังมาใน s ด้วยนาฬิกา host เอง — กัน game.time ของแต่ละเครื่องเพี้ยนกันแล้วผู้เล่นหายจากแมพ (ดูหมายเหตุที่ localPlayerState)
  else if(d.t==='join'){Object.assign(r,d.s);updateLobby()}
  else if(d.t==='dmg'){ // client ตีมอน → หา nid แล้วลงดาเมจจริง
   const e=findByNid(d.nid);
@@ -989,6 +1011,14 @@ function onHostData(conn,d){
  else if(d.t==='bgjoin'){hostBossRally(conn._pid,d.bossId,d.name||r.name||'ผู้กล้า')}
  else if(d.t==='bgleave'){hostBossRallyLeave(conn._pid,d.bossId)}
  else if(d.t==='partyHealReq'){P.hp=Math.min(maxHp(),P.hp+d.amt);bcastExcept({t:'heal',amt:d.amt},conn)}
+ else if(d.t==='revProgress'){
+  if(d.targetPid==='host')applyRevProgress(d.frac);
+  else{const tr=net.remote[d.targetPid];if(tr&&tr.conn)try{tr.conn.send({t:'revProgress',frac:d.frac})}catch(e){}}
+ }
+ else if(d.t==='revDone'){
+  if(d.targetPid==='host')applyRevive();
+  else{const tr=net.remote[d.targetPid];if(tr&&tr.conn)try{tr.conn.send({t:'revDone'})}catch(e){}}
+ }
 }
 // ── ข้อมูลเข้า client ──
 function onClientData(conn,d,code){
@@ -1018,7 +1048,7 @@ function onClientData(conn,d,code){
  else if(d.t==='gjoin'){toast(`${d.name} เข้าร่วมกองไฟ (${d.joined}/${d.total})`,'#4ad0ff');sfx('lvl')}
  else if(d.t==='gbusy'){toast('ปาร์ตี้กำลังนัดพบที่ '+d.cpName+' อยู่','#e0a060')}
  else if(d.t==='gstatus'){applyGatherStatus(d)}
- else if(d.t==='gopen'){const c=CPS[d.cpId];if(c)openCP(c)}
+ else if(d.t==='gopen'){net.gather=net.gather||{cpId:d.cpId};const c=CPS[d.cpId];if(c)openCP(c)}
  else if(d.t==='gclose'){net.gather=null;closeOverlays();document.getElementById('coopGatherPanel').style.display='none'}
  else if(d.t==='rested'){
   P.hp=maxHp();P.st=maxSt();P.flasks=P.flaskMax;P.poisonT=P.burnT=P.slowT=0;
@@ -1030,6 +1060,10 @@ function onClientData(conn,d,code){
  else if(d.t==='bgclose'){document.getElementById('bossRallyPanel').style.display='none'}
  else if(d.t==='warpTo'){P.x=d.x;P.y=d.y;P.vx=P.vy=0}
  else if(d.t==='heal'){P.hp=Math.min(maxHp(),P.hp+d.amt)}
+ else if(d.t==='revProgress'){applyRevProgress(d.frac)}
+ else if(d.t==='revDone'){applyRevive()}
+ else if(d.t==='teamWipe'){respawnAtBonfire();toast('ทีมพ่ายแพ้ยกทีม... ฟื้นที่กองไฟพร้อมวันใหม่','#e08060')}
+ else if(d.t==='bossItem'){grantBossItem(d.id)}
  // ── ท่าโกงของลาสบอส เวลามันเล็งมาที่เราโดยตรง (ไม่ใช่แค่ host) ──
  else if(d.t==='status'){if(d.patch)Object.assign(P,d.patch);if(d.gamePatch)Object.assign(game,d.gamePatch)}
  else if(d.t==='flaskSteal'){if(P.flasks>0)P.flasks--}
@@ -1216,9 +1250,11 @@ function applyClientHit(e,dmg,fx,r){
 }
 // ── สถานะผู้เล่นตัวเองสำหรับส่งข้าม network ──
 function localPlayerState(full){
- if(!P)return{x:0,y:0,face:0,hp:1,mhp:1,job:'novice',lvl:1,atkT:0,rollT:0,mv:0,name:net.name,last:game.time}; // ยังนั่งรอในล็อบบี้ ไม่ได้กด "เริ่มเกม" เลย P ยังไม่ถูกสร้าง
+ if(!P)return{x:0,y:0,face:0,hp:1,mhp:1,job:'novice',lvl:1,atkT:0,rollT:0,mv:0,name:net.name,last:Date.now()/1000}; // ยังนั่งรอในล็อบบี้ ไม่ได้กด "เริ่มเกม" เลย P ยังไม่ถูกสร้าง
+ // last ใช้นาฬิกาจริง (Date.now) ไม่ใช่ game.time — game.time เป็นค่าต่อเครื่อง หยุดเดินเวลาตายหรือเปิดเมนู (game.overlay)
+ // ถ้าใช้ game.time เทียบข้ามเครื่องกัน พอใครหยุดนาฬิกาตัวเองไปพักหนึ่ง (ตาย/เปิดกระเป๋า/สลับแท็บพื้นหลัง) ผู้เล่นคนนั้นจะโดนมองว่า "เก่าเกิน 3 วิ" และหายจากแมพถาวร
  const s={x:Math.round(P.x),y:Math.round(P.y),face:+P.face.toFixed(2),hp:Math.round(P.hp),mhp:Math.round(maxHp()),
-  job:P.job,lvl:P.lvl,atkT:P.atkT>0?1:0,rollT:P.rollT>0?1:0,mv:P.moving?1:0,name:net.name,last:game.time};
+  job:P.job,lvl:P.lvl,atkT:P.atkT>0?1:0,rollT:P.rollT>0?1:0,mv:P.moving?1:0,name:net.name,last:Date.now()/1000,downed:P.downed?1:0};
  if(full){s.stats={...P.stats};s.pet=P.pet}
  return s;
 }
@@ -1283,7 +1319,7 @@ function netUpdate(dt){
  if(!coop())return;
  if(isHost()){
   net.snapAcc+=dt;
-  if(net.snapAcc>=1/15){net.snapAcc=0;const s=buildSnap();bcast(s)}
+  if(net.snapAcc>=1/15){net.snapAcc=0;const s=buildSnap();bcast(s);checkTeamWipe()}
  }else if(isClient()){
   net.sendAcc+=dt;
   if(net.sendAcc>=1/20){net.sendAcc=0;
@@ -1322,24 +1358,36 @@ function startCoopClient(mode){
 }
 function drawRemotePlayers(){
  for(const k in net.remote){
-  const r=net.remote[k];if(!r||r.hp<=0||game.time-(r.last||0)>3)continue;
-  const [sx,sy]=W2S(r.x,r.y);
+  const r=net.remote[k];if(!r||Date.now()/1000-(r.last||0)>3)continue;
+  if(r.hp<=0&&!r.downed)continue; // hp<=0 แต่ไม่ใช่สถานะ "ล้ม" (เช่น ฮาร์ดคอร์ตายจริง) — ไม่ต้องวาด
+  // ตำแหน่งที่วาดจริงสมูธเข้าหาตำแหน่งล่าสุด (สแนปช็อตมาแค่ ~15 ครั้ง/วิ แต่จอวาด ~60 — ไม่งั้นเพื่อนจะเดินกระตุกเป็นสเต็ป) เว้นแต่ห่างมากผิดปกติ (วาร์ป/ฟื้น) ก็สแนปตรงเลย
+  if(r._dx===undefined||Math.hypot(r.x-r._dx,r.y-r._dy)>150){r._dx=r.x;r._dy=r.y}
+  else{r._dx=lerp(r._dx,r.x,.2);r._dy=lerp(r._dy,r.y,.2)}
+  const [sx,sy]=W2S(r._dx,r._dy);
   if(sx<-40||sy<-40||sx>cv.width+40||sy>cv.height+40)continue;
   const J=JOBS[r.job]||JOBS.novice;
+  const down=r.hp<=0&&r.downed;
   cx.fillStyle='rgba(0,0,0,.3)';cx.beginPath();cx.ellipse(sx,sy+14,10,3.5,0,0,TAU);cx.fill();
-  // ตัว
+  // ตัว (ถ้าล้มอยู่ วาดนอนราบสีเทา)
   cx.save();cx.translate(sx,sy);cx.scale(Math.cos(r.face)>=0?1:-1,1);
-  cx.fillStyle=J.c;cx.beginPath();cx.moveTo(-3,-9);cx.quadraticCurveTo(-11,-2,-9,10);cx.quadraticCurveTo(-5,7,-2,5);cx.closePath();cx.fill();
-  cx.fillStyle='#b8ac98';cx.fillRect(-5,-10,10,15);cx.strokeStyle='#000';cx.lineWidth=2;cx.strokeRect(-5,-10,10,15);
-  cx.fillStyle='#e8c8a8';cx.beginPath();cx.arc(1,-15,5.5,0,TAU);cx.fill();cx.stroke();
-  if(r.atkT){cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.moveTo(6,-7);cx.lineTo(22,-7);cx.stroke()}
+  if(down)cx.rotate(Math.PI/2);
+  cx.globalAlpha=down?.55:1;
+  cx.fillStyle=down?'#706860':J.c;cx.beginPath();cx.moveTo(-3,-9);cx.quadraticCurveTo(-11,-2,-9,10);cx.quadraticCurveTo(-5,7,-2,5);cx.closePath();cx.fill();
+  cx.fillStyle=down?'#807868':'#b8ac98';cx.fillRect(-5,-10,10,15);cx.strokeStyle='#000';cx.lineWidth=2;cx.strokeRect(-5,-10,10,15);
+  cx.fillStyle=down?'#a89888':'#e8c8a8';cx.beginPath();cx.arc(1,-15,5.5,0,TAU);cx.fill();cx.stroke();
+  if(r.atkT&&!down){cx.strokeStyle='#fff';cx.lineWidth=3;cx.beginPath();cx.moveTo(6,-7);cx.lineTo(22,-7);cx.stroke()}
+  cx.globalAlpha=1;
   cx.restore();
-  // ชื่อ + หลอดเลือด
+  // ชื่อ + หลอดเลือด (หรือป้าย "ล้มลง — ชุบได้")
   cx.font='11px sans-serif';cx.textAlign='center';
-  cx.fillStyle='#000';cx.fillText(r.name||'?',sx+1,sy-24);cx.fillStyle='#8fd0ff';cx.fillText(r.name||'?',sx,sy-25);
+  cx.fillStyle='#000';cx.fillText(r.name||'?',sx+1,sy-24);cx.fillStyle=down?'#ff8080':'#8fd0ff';cx.fillText((down?'💀 ':'')+(r.name||'?'),sx,sy-25);
   cx.textAlign='start';
-  cx.fillStyle='#000a';cx.fillRect(sx-14,sy-21,28,4);
-  cx.fillStyle='#40c040';cx.fillRect(sx-13,sy-20,26*Math.max(0,r.hp/(r.mhp||1)),2);
+  if(down){
+   cx.font='10px sans-serif';cx.textAlign='center';cx.fillStyle='#ffd040';cx.fillText('[กดค้าง E ใกล้ๆ เพื่อชุบ]',sx,sy+22);cx.textAlign='start';
+  }else{
+   cx.fillStyle='#000a';cx.fillRect(sx-14,sy-21,28,4);
+   cx.fillStyle='#40c040';cx.fillRect(sx-13,sy-20,26*Math.max(0,r.hp/(r.mhp||1)),2);
+  }
  }
 }
 // เมนู / ล็อบบี้
@@ -1369,8 +1417,23 @@ function leaveCoop(){
  document.getElementById('coopPanel').style.display='none';
  document.getElementById('coopGatherPanel').style.display='none';
  document.getElementById('bossRallyPanel').style.display='none';
+ document.getElementById('coopLogoutBtn').style.display='none';
  if(game.state==='title'&&curChar)selectCharacter(curChar.id); // กลับไปหน้าเลือกโหมดของตัวละครเดิม
 }
+function logoutCoop(){ // ปุ่ม "ออกจากเกม" ระหว่างเล่น co-op — เซฟก่อนออกเสมอ แล้วกลับหน้าเลือกโหมด
+ if(!confirm('ออกจากเกมตอนนี้เลยไหม? ความคืบหน้าจะถูกเซฟไว้'))return;
+ if(game.state==='play')saveGame();
+ game.state='title';
+ document.getElementById('hud').style.display='none';
+ document.getElementById('hotbar').style.display='none';
+ document.getElementById('minimap').style.display='none';
+ document.getElementById('bossBar').style.display='none';
+ document.getElementById('title').style.display='flex';
+ closeOverlays();
+ leaveCoop(); // ตัดการเชื่อมต่อ + กลับหน้าเลือกโหมด (game.state เป็น 'title' แล้วตรงเงื่อนไขในนี้พอดี)
+}
+document.getElementById('coopLogoutBtn').onclick=logoutCoop;
+document.getElementById('flaskBtn').onclick=()=>{if(game.state==='play'&&!game.overlay&&!P.downed)useFlask()};
 // ── ส่งดาเมจถึงผู้เล่นให้ถูกเจ้าของ (local = hurtPlayer, remote = ส่ง event) ──
 function sendHit(r,dmg,src){if(r.conn){try{r.conn.send({t:'hit',dmg:Math.round(dmg),eff:src?{poison:src.poison,burn:src.burn,slowShot:src.slowShot}:null})}catch(e){}}}
 function hurtTarget(T,dmg,src){
@@ -1413,6 +1476,7 @@ function newPlayer(){
   flaskMax:3, flasks:3, lastCP:0, discovered:[0], killedBosses:[],
   job:'novice', jobLvl:1, jobExp:0, killCount:{}, skillCd:0, frenzyT:0,
   job2:false, skill2Cd:0, ultCd:0, ultT:0, expLedger:0,
+  downed:false, downedInBoss:false,
   util:null, pet:null, petQuest:{step:0,k0:0}, revealedBosses:[], secrets:[], finalDone:0,
   bootsT:0, cloakT:0, frozenT:0, safeX:0, safeY:0,
   atkT:0, atkCd:0, rollT:0, rollDir:0, ifr:0, hurtT:0, regenDelay:0,
@@ -1511,7 +1575,7 @@ function announce(msg,col){const a=document.getElementById('announce');a.textCon
 
 // ---------- ดาเมจใส่ผู้เล่น ----------
 function hurtPlayer(dmg,src){
- if(P.ifr>0||game.state!=='play')return;
+ if(P.ifr>0||game.state!=='play'||P.downed)return;
  if(P.job==='priest'&&P.job2&&P.ultBuffT>0)return; // ปาฏิหาริย์สุดท้าย [T]: อมตะชั่วคราว
  const red=dmg*(100/(100+pDef()));
  const final=Math.max(1,Math.round(red*rnd(.9,1.1)));
@@ -1525,21 +1589,66 @@ function hurtPlayer(dmg,src){
 function playerDie(){
  sfx('die'); P.deaths++;
  if(P.petQuest&&P.petQuest.step===3)P.petQuest.k0=P.killCount.icewolf||0; // ⚠ ตายระหว่างล่า = นับใหม่
- game.state='dead';
  addFx(P.x,P.y,'#a02020',30,150);
  if(game.mode==='hc'){
-  if(curChar)deleteCharacter(curChar.id); // ฮาร์ดคอร์ = ลบตัวละครนี้ถาวร (ไม่กระทบตัวละครอื่นในโรสเตอร์)
+  game.state='dead';
+  if(curChar)deleteCharacter(curChar.id); // ฮาร์ดคอร์ = ลบตัวละครนี้ถาวร ไม่ว่าเดี่ยวหรือทีม (ไม่มีการชุบให้ฮาร์ดคอร์)
   document.getElementById('deathTitle').textContent='จุดจบนิรันดร์';
   document.getElementById('deathText').innerHTML=`ตัวละครฮาร์ดคอร์ของท่านดับสูญไปตลอดกาล<br>เลเวล ${P.lvl} • สังหาร ${P.kills} ตน • วิญญาณที่สูญสิ้น ${fmt(P.exp)}<br>ความมืดกลืนกินทุกสิ่ง...`;
   document.getElementById('deathBtn').textContent='กลับสู่หน้าหลัก';
+  document.getElementById('deathScreen').style.display='flex';
+ }else if(coop()){
+  enterDowned();
  }else{
+  game.state='dead';
   if(P.exp>0)bloodstain={x:P.x,y:P.y,exp:P.exp};
   P.exp=0;
   document.getElementById('deathTitle').textContent='ท่านสิ้นชีพแล้ว';
   document.getElementById('deathText').innerHTML=bloodstain?`วิญญาณ ${fmt(bloodstain.exp)} EXP หล่นอยู่ที่จุดตาย<br>กลับไปเก็บคืนก่อนตายอีกครั้ง ไม่งั้นหายถาวร!`:'ท่านไม่ได้ถือวิญญาณติดตัว... โชคยังดี';
   document.getElementById('deathBtn').textContent='ฟื้นที่เช็คพอยท์';
+  document.getElementById('deathScreen').style.display='flex';
  }
- document.getElementById('deathScreen').style.display='flex';
+}
+// ---------- ล้มลง (co-op ไม่ฮาร์ดคอร์): โลกยังเดินต่อ (ดู loop) รอเพื่อนชุบ 3 วิ หรือเลือกฟื้นที่กองไฟเอง (เว้นแต่ล้มกลางลานบอสที่ประตูปิด) ----------
+function enterDowned(){
+ P.downed=true;
+ const inBoss=bosses.some(b=>b.active&&dist(P,b)<16*TILE);
+ P.downedInBoss=inBoss;
+ if(P.exp>0){ // วิญญาณที่ล้มกลางบอสไปตกไว้หน้าทางเข้าลาน (ในลานอาจเข้าไปเก็บคืนไม่ได้ถ้าประตูปิด/บอสรีเซ็ต) ส่วนล้มทั่วไปตกที่จุดล้มตามปกติ
+  const b=inBoss?bosses.find(x=>x.active&&dist(P,x)<16*TILE):null;
+  const bd=b?BOSSDEF.find(x=>x.id===b.bdef.id):null;
+  const dropAt=(bd&&bd.rally)?bd.rally:{x:P.x,y:P.y};
+  bloodstain={x:dropAt.x,y:dropAt.y,exp:P.exp};
+ }
+ P.exp=0;
+ document.getElementById('downedInfo').textContent=inBoss?'ล้มลงกลางสมรภูมิ! ประตูลานปิดสนิท — รอเพื่อนมาชุบเท่านั้น':'ล้มลง! รอเพื่อนมาชุบ หรือเลือกฟื้นที่กองไฟเองก็ได้';
+ document.getElementById('downedProgress').textContent='';
+ document.getElementById('btnDownedBonfire').style.display=inBoss?'none':'inline-block';
+ document.getElementById('downedScreen').style.display='flex';
+}
+function respawnAtBonfire(){ // ใช้ทั้งตอนกดฟื้นเองและตอนโดนบังคับฟื้นยกทีม
+ const c=CPS[P.lastCP];
+ P.x=c.x*TILE+16;P.y=c.y*TILE+16;P.vx=P.vy=0;
+ P.hp=maxHp();P.st=maxSt();P.flasks=P.flaskMax;
+ P.poisonT=P.burnT=P.slowT=0;
+ P.downed=false;P.downedInBoss=false;
+ document.getElementById('downedScreen').style.display='none';
+ saveGame();
+}
+function forceTeamRespawn(){ // host เท่านั้น: ทั้งทีมล้มพร้อมกัน — บังคับฟื้นทุกคนที่กองไฟ + รีเซ็ตวันใหม่
+ game.clock=15;game.phase='day';
+ spawnEnemies();spawnChests();projs=[];zones=[];
+ bosses.forEach(b=>{if(b.active)resetBoss(b)});
+ respawnAtBonfire();
+ bcast({t:'teamWipe'});
+ toast('ทีมพ่ายแพ้ยกทีม... ทุกคนฟื้นที่กองไฟพร้อมวันใหม่','#e08060');
+}
+function checkTeamWipe(){ // host เท่านั้น เรียกทุกรอบ snapshot — เช็คว่าทุกคนในทีมล้มพร้อมกันหรือยัง
+ if(!isHost())return;
+ const ids=partyIds();
+ const allDown=ids.length&&ids.every(id=>id==='host'?P.downed:(net.remote[id]&&net.remote[id].downed));
+ if(allDown&&!game.teamWiping){game.teamWiping=true;forceTeamRespawn()}
+ else if(!allDown)game.teamWiping=false; // กันยิงซ้ำทุก 1/15 วิ ตอนล้มยกทีม — รีเซ็ตแฟล็กเมื่อมีใครกลับมายืนได้แล้ว
 }
 
 // ---------- โจมตี (ท่าต่างกันตามอาชีพ) ----------
@@ -2189,6 +2298,13 @@ function pickupDrop(d){
  drops.splice(drops.indexOf(d),1);
  if(!isClient())saveGame();
 }
+function grantBossItem(id){ // ของบอส: ไม่ตกพื้นให้แย่งกัน — เข้ากระเป๋าตัวเองตรงๆ คนละชิ้น (เรียกจาก bossDie ทั้งฝั่ง host เองและฝั่ง client ที่ได้รับ broadcast)
+ if(P.gear.includes(id))return; // มีอยู่แล้ว (เช่นเคยเก็บจากโลกก่อนหน้า) ไม่ซ้ำ
+ P.gear.push(id);
+ toast('ได้รับ '+ITEMS[id].n+' !','#e8a0ff');sfx('rare');
+ addDmg(P.x,P.y-30,ITEMS[id].n,'#e8a0ff',true);
+ saveGame();
+}
 
 // ---------- สร้างมอนจาก spawner ----------
 // หาจุดว่างใกล้เคียง (กันมอนเกิดฝังในต้นไม้/กำแพงแล้วเดินไม่ได้)
@@ -2375,7 +2491,8 @@ function bossDie(b){
  gainExp(expGain);
  gainJobExp(Math.round(expGain*0.8));
  addDmg(b.x,b.y-40,'+'+fmt(expGain)+' EXP','#c9a55a',true);
- drops.push({x:b.x,y:b.y,id:b.bdef.drop,t:0,rare:true});
+ grantBossItem(b.bdef.drop); // ของบอสไม่ตกพื้นให้แย่งกัน — เข้ากระเป๋าตัวเองตรงๆ และแจกให้ทั้งทีมคนละชิ้น (ดูล่าง)
+ if(coop())bcast({t:'bossItem',id:b.bdef.drop});
  // บอสตายแล้วนับที่ไหน: เล่นทีม co-op → เซฟโลกทีม (ไม่ยุ่งกับตัวละคร) | โซโล่ → ตัวละครตามเดิม
  if(isHost()&&curWorld){
   if(!curWorld.killedBosses.includes(b.bdef.id))curWorld.killedBosses.push(b.bdef.id);
@@ -2839,29 +2956,69 @@ function updatePlayer(dt){
  }
  // ---- ระบบโต้ตอบ [E]: เลือกสิ่งที่ใกล้ที่สุด ----
  const pr=document.getElementById('prompt');
- nearCP=null;nearChest=null;nearPortal=false;nearPet=false;
+ nearCP=null;nearChest=null;nearPortal=false;nearPet=false;nearDowned=null;
  let bestD=70,label='';
+ if(coop())for(const k in net.remote){ // เพื่อนล้มอยู่ใกล้ๆ — สำคัญสุด แซงคิวก่อนอย่างอื่น
+  const r=net.remote[k];if(!r||!r.downed)continue;
+  const dd=Math.hypot(P.x-r.x,P.y-r.y);
+  if(dd<Math.min(bestD,55)){bestD=dd;nearDowned=k;label=`[กดค้าง E] ชุบ ${r.name||'เพื่อน'}`}
+ }
  for(const c of CPS){
   const dd=Math.hypot(P.x-(c.x*TILE+16),P.y-(c.y*TILE+16));
-  if(dd<bestD){bestD=dd;nearCP=c;label=`[E] คุยกับ ${c.npc} — ${c.n}`}
+  if(dd<bestD){bestD=dd;nearDowned=null;nearCP=c;label=`[E] คุยกับ ${c.npc} — ${c.n}`}
  }
  for(const ch of chests){
   if(ch.opened)continue;
   const dd=dist(P,ch);
-  if(dd<Math.min(bestD,55)){bestD=dd;nearCP=null;nearChest=ch;label='[E] เปิดหีบสมบัติ…?'}
+  if(dd<Math.min(bestD,55)){bestD=dd;nearDowned=null;nearCP=null;nearChest=ch;label='[E] เปิดหีบสมบัติ…?'}
  }
  if(petNPC){
   const dd=dist(P,petNPC);
-  if(dd<Math.min(bestD,60)){bestD=dd;nearCP=null;nearChest=null;nearPet=true;label='[E] เข้าไปดูสัตว์ตัวน้อยที่ส่งเสียงครวญคราง'}
+  if(dd<Math.min(bestD,60)){bestD=dd;nearDowned=null;nearCP=null;nearChest=null;nearPet=true;label='[E] เข้าไปดูสัตว์ตัวน้อยที่ส่งเสียงครวญคราง'}
  }
  if(!P.finalDone&&!game.finalFight&&[0,1,2,3,4,5].every(i=>effDead().includes(i))){
   const dd=Math.hypot(P.x-(WC*TILE+16),P.y-((WC-6)*TILE+16));
-  if(dd<Math.min(bestD,70)){bestD=dd;nearCP=null;nearChest=null;nearPet=false;nearPortal=true;label='[E] ก้าวเข้าสู่เงามืด…'}
+  if(dd<Math.min(bestD,70)){bestD=dd;nearDowned=null;nearCP=null;nearChest=null;nearPet=false;nearPortal=true;label='[E] ก้าวเข้าสู่เงามืด…'}
  }
  if(label&&!game.overlay){pr.style.display='block';pr.textContent=label}
  else pr.style.display='none';
+ // ชุบเพื่อนที่ล้ม (กดค้าง E นาน 3 วิ ต่อเนื่อง — หลุดระยะหรือปล่อยปุ่ม = ยกเลิก)
+ if(nearDowned&&keys['e']&&!game.overlay){
+  if(reviveTargetKey!==nearDowned){reviveTargetKey=nearDowned;reviveChannelT=0;reviveTickAcc=0}
+  reviveChannelT+=dt;reviveTickAcc+=dt;
+  if(reviveTickAcc>=.15){reviveTickAcc=0;sendRevive(reviveTargetKey,{t:'revProgress',frac:Math.min(1,reviveChannelT/3)})}
+  pr.style.display='block';
+  pr.textContent=`กำลังชุบ ${(net.remote[reviveTargetKey]&&net.remote[reviveTargetKey].name)||'เพื่อน'}... ${Math.min(3,reviveChannelT).toFixed(1)}/3 วิ`;
+  if(reviveChannelT>=3){
+   sendRevive(reviveTargetKey,{t:'revDone'});
+   toast('ชุบเพื่อนสำเร็จ!','#7ad080');sfx('lvl');
+   reviveChannelT=0;reviveTargetKey=null;
+  }
+ }else if(reviveTargetKey){
+  reviveChannelT=0;reviveTargetKey=null;
+ }
 }
-let nearCP=null,nearChest=null,nearPortal=false,nearPet=false,petNPC=null,chests=[];
+let nearCP=null,nearChest=null,nearPortal=false,nearPet=false,nearDowned=null,petNPC=null,chests=[];
+let reviveChannelT=0,reviveTargetKey=null,reviveTickAcc=0;
+function sendRevive(targetKey,msg){ // ส่งข้อความชุบไปหาเจ้าของตัวจริง (ผ่าน host ถ้าจำเป็น — แพทเทิร์นเดียวกับ hurtTarget/sendStatus)
+ if(isHost()){
+  const r=net.remote[targetKey];if(r&&r.conn)try{r.conn.send(msg)}catch(e){}
+ }else{
+  sendHost({...msg,targetPid:targetKey});
+ }
+}
+function applyRevProgress(frac){
+ if(!P.downed)return;
+ document.getElementById('downedProgress').textContent=`เพื่อนกำลังชุบเจ้า... ${Math.round(frac*100)}%`;
+}
+function applyRevive(){
+ if(!P.downed)return;
+ P.downed=false;P.downedInBoss=false;
+ P.hp=Math.round(maxHp()*.5);P.st=Math.round(maxSt()*.5);
+ document.getElementById('downedScreen').style.display='none';
+ toast('ได้รับการชุบชีวิต! ลุกขึ้นสู้ต่อ','#7ad080');sfx('lvl');addFx(P.x,P.y,'#7ad080',24,150);
+ saveGame();
+}
 
 // ---------- บอทออโต้ฟาร์ม ----------
 const bot={on:false,jitterT:0,jitterA:0,lastX:0,lastY:0,checkT:0,restLock:0};
@@ -3346,9 +3503,10 @@ function openInv(){
  if(!unequipped.length)h+='<i style="color:#666">— ว่างเปล่า —</i>';
  for(const id of unequipped){
   const it=ITEMS[id];
+  const locked=it.boss&&!P.finalDone;
   const fxTxt=[it.atk?'ATK '+it.atk:'',it.def?'DEF '+it.def:'',it.d||''].filter(Boolean).join(' • ');
-  h+=`<div class="gearRow"><div><b class="${it.rare?'rare':''}">${it.n}</b><div class="fx">${fxTxt}</div></div>
-   <button data-eq="${id}">สวมใส่</button></div>`;
+  h+=`<div class="gearRow"><div><b class="${it.rare?'rare':''}">${it.n}</b><div class="fx">${fxTxt}${locked?'<br><span style="color:#e06060">🔒 สวมใส่ได้เมื่อปราบเงามหันตภัยสำเร็จแล้ว (New Game+)</span>':''}</div></div>
+   <button data-eq="${id}" ${locked?'disabled':''}>${locked?'🔒 ล็อก':'สวมใส่'}</button></div>`;
  }
  if(P.util){
   const u=UTILS[P.util.id];
@@ -3367,6 +3525,7 @@ function openInv(){
 }
 function equipItem(id){
  const it=ITEMS[id];
+ if(it.boss&&!P.finalDone){toast('ของจากบอสสวมใส่ได้ก็ต่อเมื่อปราบเงามหันตภัยสำเร็จมาแล้วอย่างน้อย 1 ครั้ง (New Game+)','#e06060');sfx('hurt');return}
  if(it.t==='weapon')P.equip.weapon=id;
  else if(it.t==='armor')P.equip.armor=id;
  else if(it.t==='charm'){
@@ -3453,6 +3612,7 @@ function startGame(mode,fresh,coopClient){
  document.getElementById('hud').style.display='block';
  document.getElementById('hotbar').style.display='flex';
  document.getElementById('minimap').style.display='block';
+ document.getElementById('coopLogoutBtn').style.display=coop()?'block':'none';
  document.getElementById('deathScreen').style.display='none';
  document.getElementById('bossBar').style.display='none';
  cam.x=P.x;cam.y=P.y;
@@ -3480,7 +3640,7 @@ function handleKey(k){
   if(keys['a']||keys['arrowleft'])dx-=1;if(keys['d']||keys['arrowright'])dx+=1;
   startRoll(dx||dy?Math.atan2(dy,dx):P.face);
  }
- else if(k==='f')useFlask();
+ else if(k==='digit1')useFlask();
  else if(k==='r')useSkill();
  else if(k==='q')useSkill2();
  else if(k==='t')useUlt();
@@ -3495,7 +3655,7 @@ function handleKey(k){
  }
  else if(k==='m'){muted=!muted;toast(muted?'ปิดเสียง':'เปิดเสียง')}
 }
-document.getElementById('cpClose').onclick=closeOverlays;
+document.getElementById('cpClose').onclick=()=>{if(coop()&&net.gather){readyUp();return}closeOverlays()}; // กันคลิก "ปิด" หลุดออกจากขั้นตอนพร้อมกันตอนรวมพลกองไฟ (ปุ่มนี้ควรถูกซ่อนอยู่แล้วตอนรวมพล แต่กันเหนียวไว้)
 document.getElementById('cpReady').onclick=readyUp;
 document.getElementById('invClose').onclick=closeOverlays;
 document.querySelectorAll('#cpTabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
@@ -3517,6 +3677,11 @@ document.getElementById('deathBtn').onclick=()=>{
   bosses.forEach(b=>{if(b.active)resetBoss(b)});
   game.state='play';saveGame();
  }
+};
+document.getElementById('btnDownedBonfire').onclick=()=>{
+ if(!P.downed||P.downedInBoss)return; // ล้มกลางบอสที่ประตูปิด เลือกฟื้นเองไม่ได้ ต้องรอเพื่อนชุบหรือรอวายทั้งทีม
+ respawnAtBonfire();
+ toast('ฟื้นที่กองไฟ','#ffb060');sfx('flask');
 };
 
 // =========================================================
@@ -3674,7 +3839,7 @@ function drawMinimap(){
  }
  // (ไม่บอกตำแหน่งบอสบนแผนที่ — เห็นเฉพาะกองไฟ ศพ ตัวเอง เพื่อนร่วมทีม และหมุด)
  if(coop())for(const k in net.remote){ // เพื่อนร่วมทีม (co-op) — จุดฟ้า
-  const r=net.remote[k];if(!r||r.hp<=0||game.time-(r.last||0)>4)continue;
+  const r=net.remote[k];if(!r||r.hp<=0||Date.now()/1000-(r.last||0)>4)continue;
   g.fillStyle='#40c8ff';g.beginPath();g.arc(r.x*sx,r.y*sy,3,0,TAU);g.fill();
  }
  g.fillStyle='#40ff80';g.beginPath();g.arc(P.x*sx,P.y*sy,3,0,TAU);g.fill();
@@ -3682,6 +3847,13 @@ function drawMinimap(){
  for(const p of pings){ // หมุดที่ปัก — จุดทองกะพริบ
   g.fillStyle='#ffd040';g.beginPath();g.arc(p.x*sx,p.y*sy,3+Math.sin(game.time*10)*1,0,TAU);g.fill();
  }
+ // สัญลักษณ์ช่วงเวลา + สภาพอากาศ ณ ปัจจุบัน (มุมซ้ายบนของมินิแมพ — ในโหมด co-op ทุกคนเห็นตรงกันเพราะซิงค์ผ่าน snapshot)
+ const phaseIcon=game.phase==='day'?'☀':game.phase==='eve'?'🌆':'🌙';
+ const wIcon=(game.weather&&game.weather.intensity>0.15)?({storm:'⛈',rain:'🌧',wind:'🍃'}[game.weather.type]||''):'';
+ g.font='16px sans-serif';g.textAlign='left';g.textBaseline='top';
+ g.fillStyle='rgba(0,0,0,.5)';g.fillRect(2,2,wIcon?46:24,22);
+ g.fillText(phaseIcon+(wIcon?' '+wIcon:''),5,3);
+ g.textAlign='start';g.textBaseline='alphabetic';
 }
 // ---------- สไปรต์สิ่งแวดล้อม (พรีเรนเดอร์ 6 ไบโอม × 3 แบบ) ----------
 const OBST=[];
@@ -4802,6 +4974,8 @@ function render(){
  document.getElementById('hudInfo').innerHTML=
   `<span style="color:${Jh.c}">${Jh.n}</span> <b style="color:#7ab0e0">Jb.${P.jobLvl}</b> • Lv.<b>${P.lvl}</b> ${game.mode==='hc'?'<span style="color:#e06060">💀HC</span>':''} • EXP <b>${fmt(P.exp)}</b>/${fmt(expNeed(P.lvl))}${P.pts>0?' • <span style="color:#7ad080">แต้มค้าง '+P.pts+'</span>':''}${P.exp>=expNeed(P.lvl)?' <span style="color:#ffd040">⬆ไปอัพเลเวลที่เช็คพอยท์!</span>':''}${P.job==='novice'&&P.jobLvl>=10?' <span style="color:#ffd040">🧭ไปทำเควสเปลี่ยนอาชีพ!</span>':''}`;
  document.getElementById('flaskSlot').textContent=`${P.flasks}/${P.flaskMax}`;
+ document.getElementById('flaskCount').textContent=P.flasks;
+ document.getElementById('flaskBtn').disabled=(P.flasks<=0||P.hp>=maxHp());
  document.getElementById('skillSlot').textContent=Jh.skill?(P.skillCd>0?Math.ceil(P.skillCd)+'s':Jh.skill.n):'-';
  document.getElementById('utilSlot').textContent=P.util?(P.util.cd>0?Math.ceil(P.util.cd)+'s':UTILS[P.util.id].n.slice(2).trim()):'-';
  document.getElementById('heavySlot').textContent=(P.heavyCd||0)>0?Math.ceil(P.heavyCd)+'s':'คลิกขวา';
@@ -4817,28 +4991,32 @@ function render(){
 let lastT=0;
 function loop(ts){
  const dt=Math.min(.05,(ts-lastT)/1000)||.016;lastT=ts;
- if(game.state==='play'&&!game.overlay){
+ // โลกที่แชร์กัน (มอน/บอส/เวลา/สภาพอากาศ/สแนปช็อต) ต้องเดินต่อแม้ "เรา" จะเปิดกระเป๋า/ตายอยู่ก็ตาม — ไม่งั้นคนอื่นในทีมค้างไปด้วย
+ // หยุดจริงๆ เฉพาะตอนมีเหตุผลที่ควรหยุดทั้งปาร์ตี้จริงๆ (นัดกองไฟ/บทนำ) หรือโซโล่ตาย (ไม่มีใครอื่นให้ต้องรันโลกต่อให้)
+ const worldFrozen=game.overlay==='cp'||game.overlay==='intro';
+ const worldPlaying=game.state==='play'||(game.state==='dead'&&coop());
+ if(worldPlaying&&!worldFrozen){
   game.time+=dt;game.playT+=dt;
   game.shake=Math.max(0,game.shake-dt*30);
   game.sandstorm=Math.max(0,(game.sandstorm||0)-dt);
   if(!isClient()){updateDayCycle(dt);updateWeather(dt)} // client รับ phase/สภาพอากาศ จาก host
   else if(game.weather)game.weather.flash=Math.max(0,game.weather.flash-dt*3); // client: ฟ้าแลบเฟดเอง
-  updatePlayer(dt);
-  if(game.state==='play'){
-   updateSummons(dt);
-   updatePet(dt);
-   updatePings(dt);
-   updateBossRally(dt);
-   if(!isClient()){ // host/เดี่ยว: คุมโลก | client: รับ snapshot มาวาด
-    for(let i=enemies.length-1;i>=0;i--)updateEnemy(enemies[i],dt);
-    for(const b of [...bosses])updateBoss(b,dt);
-    updateProjs(dt);
-    updateEnergyOrbs(dt);
-   }
-   netUpdate(dt);
+  if(game.state==='play'&&!game.overlay)updatePlayer(dt); // ตัวเองขยับ/ทำอะไรได้เฉพาะตอนไม่ตายและไม่มีเมนูเปิดอยู่
+  updateSummons(dt);
+  updatePet(dt);
+  updatePings(dt);
+  updateBossRally(dt);
+  if(!isClient()){ // host/เดี่ยว: คุมโลก | client: รับ snapshot มาวาด
+   for(let i=enemies.length-1;i>=0;i--)updateEnemy(enemies[i],dt);
+   for(const b of [...bosses])updateBoss(b,dt);
+   updateProjs(dt);
+   updateEnergyOrbs(dt);
   }
-  cam.x=lerp(cam.x,P.x,Math.min(1,8*dt));
-  cam.y=lerp(cam.y,P.y,Math.min(1,8*dt));
+  netUpdate(dt);
+  if(game.state==='play'){ // ตอนตาย กล้องหยุดนิ่งอยู่ที่จุดตาย ไม่ต้องขยับตาม
+   cam.x=lerp(cam.x,P.x,Math.min(1,8*dt));
+   cam.y=lerp(cam.y,P.y,Math.min(1,8*dt));
+  }
  }
  if(game.state!=='title')render();
  requestAnimationFrame(loop);
