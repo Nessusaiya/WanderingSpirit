@@ -403,15 +403,19 @@ function sfx(type){
   }catch(e){}
 }
 // ---------- บรรยากาศเสียง: BGM สดใสสไตล์ RPG ตอนกลางวัน + เสียงนกร้อง / เสียงจิ้งหรีดยามค่ำคืน (ไม่มี BGM ตอนกลางคืน) ----------
-let ambientNodes=null, birdT=0, cricketT=0, bgmArpT=0, bgmStep=0;
-const BGM_ARP=[261.63,329.63,392.00,523.25,659.25,523.25,392.00,329.63]; // C4-E4-G4-C5-E5-C5-G4-E4 อาร์เพจจิโอเมเจอร์วนขึ้นลง ฟังสดใสแบบธีมโอเวอร์เวิลด์ RPG
+let ambientNodes=null, birdT=0, cricketT=0, bgmArpT=0, bgmStep=0, bgmRestT=0, bgmSwell=0;
+const BGM_ARP=[ // อาร์เพจจิโอเมเจอร์ 2 วรรค (ยาวขึ้นจากเดิม 8 → 16 โน้ต) วนขึ้นลง ฟังสดใสแบบธีมโอเวอร์เวิลด์ RPG
+ 261.63,329.63,392.00,523.25,659.25,523.25,392.00,329.63, // วรรค 1: C4-E4-G4-C5-E5-C5-G4-E4
+ 293.66,392.00,440.00,587.33,440.00,392.00,329.63,293.66, // วรรค 2: D4-G4-A4-D5-A4-G4-E4-D4 (ลงท้ายต่ำ เตรียมพักก่อนวนกลับ)
+];
+const BGM_TEMPO=.4, BGM_REST=1.8; // จังหวะต่อโน้ต / ช่วงหยุดเงียบก่อนวนซ้ำรอบใหม่
 function startAmbientBGM(){
  if(muted||ambientNodes)return;
  try{
   ensureAC();
   const g=AC.createGain();g.gain.value=0;g.connect(musicBus);
   g.gain.linearRampToValueAtTime(1,AC.currentTime+2); // มาสเตอร์เกน (ความดังจริงคุมที่โน้ตแต่ละตัวใน playArpNote)
-  ambientNodes={g};bgmArpT=0;bgmStep=0;
+  ambientNodes={g};bgmArpT=0;bgmStep=0;bgmRestT=0;bgmSwell=99; // เริ่มรอบแรกที่ความดังเต็มทันที (มาสเตอร์เกนเฟดเข้าเองอยู่แล้ว ไม่ต้องซ้อนสเวลอีกชั้น)
  }catch(e){}
 }
 function stopAmbientBGM(){
@@ -425,16 +429,19 @@ function stopAmbientBGM(){
 function playArpNote(){
  if(!ambientNodes)return;
  try{
-  const t=AC.currentTime, f=BGM_ARP[bgmStep%BGM_ARP.length];
-  bgmStep++;
+  const t=AC.currentTime, f=BGM_ARP[bgmStep];
+  const swell=Math.min(1,(bgmSwell+1)/3); // หลังพักเงียบ 3 โน้ตแรกค่อยๆดังขึ้น (33%→66%→100%) แทนที่จะดังเต็มทันที
+  bgmSwell++;
   const o=AC.createOscillator(),ng=AC.createGain(); // โน้ตหลัก เสียงดีดใส (triangle)
   o.type='triangle';o.frequency.value=f;o.connect(ng);ng.connect(ambientNodes.g);
-  ng.gain.setValueAtTime(0,t);ng.gain.linearRampToValueAtTime(.045,t+.03);ng.gain.exponentialRampToValueAtTime(.001,t+.55);
+  ng.gain.setValueAtTime(0,t);ng.gain.linearRampToValueAtTime(.045*swell,t+.03);ng.gain.exponentialRampToValueAtTime(.001,t+.55);
   o.start(t);o.stop(t+.6);
   const o2=AC.createOscillator(),ng2=AC.createGain(); // เสียงรองต่ำกว่า 1 ออกเทฟ ให้ฟังอิ่มขึ้นนิดหน่อย
   o2.type='sine';o2.frequency.value=f/2;o2.connect(ng2);ng2.connect(ambientNodes.g);
-  ng2.gain.setValueAtTime(0,t);ng2.gain.linearRampToValueAtTime(.018,t+.03);ng2.gain.exponentialRampToValueAtTime(.001,t+.55);
+  ng2.gain.setValueAtTime(0,t);ng2.gain.linearRampToValueAtTime(.018*swell,t+.03);ng2.gain.exponentialRampToValueAtTime(.001,t+.55);
   o2.start(t);o2.stop(t+.6);
+  bgmStep++;
+  if(bgmStep>=BGM_ARP.length){bgmStep=0;bgmRestT=BGM_REST;bgmSwell=0} // จบทั้งเพลง → เงียบพักสักครู่ก่อนวนใหม่
  }catch(e){}
 }
 function chirpBird(){
@@ -471,7 +478,10 @@ function updateAmbience(dt){
  if(game.state!=='play'){if(ambientNodes)stopAmbientBGM();return}
  if(game.phase==='day'){
   if(!ambientNodes&&!muted)startAmbientBGM();
-  if(ambientNodes){bgmArpT-=dt;if(bgmArpT<=0){bgmArpT=.4;playArpNote()}}
+  if(ambientNodes){
+   if(bgmRestT>0)bgmRestT=Math.max(0,bgmRestT-dt); // ช่วงเงียบพักระหว่างรอบเพลง — ไม่เล่นโน้ตใดๆ
+   else{bgmArpT-=dt;if(bgmArpT<=0){bgmArpT=BGM_TEMPO;playArpNote()}}
+  }
   birdT-=dt;
   if(birdT<=0){birdT=rnd(3,8);chirpBird()}
  }else{
