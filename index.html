@@ -930,7 +930,7 @@ function setupHostConn(conn){
  conn.on('open',()=>{
   net.conns.push(conn);
   conn._pid='p'+(++NID);
-  net.remote[conn._pid]={x:P.x,y:P.y,face:0,hp:1,mhp:1,job:'novice',lvl:1,name:'?',last:game.time,conn};
+  net.remote[conn._pid]={x:P?P.x:0,y:P?P.y:0,face:0,hp:1,mhp:1,job:'novice',lvl:1,name:'?',last:game.time,conn}; // P เป็น null ได้ถ้าเพื่อนต่อเข้ามาตอนโฮสต์ยังนั่งรอในล็อบบี้ (ยังไม่กด "เริ่มเกม") — ค่านี้แค่ placeholder เดี๋ยว 'join'/'ps' จะส่งตำแหน่งจริงมาทับ
   conn.send({t:'welcome',id:conn._pid,mode:game.mode||'norm',started:game.state==='play',openedSecrets:[...hostOpenedSecrets]});
   updateLobby();
  });
@@ -1216,6 +1216,7 @@ function applyClientHit(e,dmg,fx,r){
 }
 // ── สถานะผู้เล่นตัวเองสำหรับส่งข้าม network ──
 function localPlayerState(full){
+ if(!P)return{x:0,y:0,face:0,hp:1,mhp:1,job:'novice',lvl:1,atkT:0,rollT:0,mv:0,name:net.name,last:game.time}; // ยังนั่งรอในล็อบบี้ ไม่ได้กด "เริ่มเกม" เลย P ยังไม่ถูกสร้าง
  const s={x:Math.round(P.x),y:Math.round(P.y),face:+P.face.toFixed(2),hp:Math.round(P.hp),mhp:Math.round(maxHp()),
   job:P.job,lvl:P.lvl,atkT:P.atkT>0?1:0,rollT:P.rollT>0?1:0,mv:P.moving?1:0,name:net.name,last:game.time};
  if(full){s.stats={...P.stats};s.pet=P.pet}
