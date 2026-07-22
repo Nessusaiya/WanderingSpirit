@@ -1098,6 +1098,11 @@ function nearestPlayer(x,y){
  for(const pl of allPlayers()){const d=(pl.x-x)**2+(pl.y-y)**2;if(d<bd){bd=d;best=pl}}
  return best;
 }
+function nearestNonNovice(x,y){ // ผู้เล่นใกล้สุดที่ "ไม่ใช่นักผจญภัย" — ใช้ให้ Ghost เมินอาชีพที่ไม่มีสกิลสู้มัน (คืน null ถ้าทั้งทีมเป็น novice หมด)
+ let best=null,bd=1e18;
+ for(const pl of allPlayers()){if((pl.job||'novice')==='novice')continue;const d=(pl.x-x)**2+(pl.y-y)**2;if(d<bd){bd=d;best=pl}}
+ return best;
+}
 function genCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<5;i++)s+=c[Math.floor(Math.random()*c.length)];return s}
 function netStatus(msg){net.status=msg;const el=document.getElementById('coopStatus');if(el)el.textContent=msg}
 function loadPeerJS(cb){
@@ -1540,7 +1545,7 @@ function buildSnap(){
  const bs=bosses.map(b=>[nid(b),b.type,Math.round(b.x),Math.round(b.y),+b.face.toFixed(2),Math.round(b.hp),Math.round(b.maxhp),
   b.active?1:0,b.invuln?1:0,Math.round(b.st||100),Math.round((b.exhaustT||0)*10),(b.t<.5&&b.t>-.5)?1:0,b.state2||'']);
  const ps=projs.filter(p=>p.from==='enemy'&&near(p.x,p.y)).map(p=>[Math.round(p.x),Math.round(p.y),p.col,p.r,p.arrow?1:0,+((p.a||0).toFixed(2)),
-   Math.round(p.dmg||0),(p.eff?((p.eff.poison?1:0)|(p.eff.burn?2:0)|(p.eff.slowShot?4:0)):0)]);
+   Math.round(p.dmg||0),(p.eff?((p.eff.poison?1:0)|(p.eff.burn?2:0)|(p.eff.slowShot?4:0)):0),Math.round(Math.hypot(p.vx||0,p.vy||0))]); // [8]=speed → client เอาไปเดินกระสุนต่อเองระหว่าง snapshot ให้ลื่น
  const zs=zones.map(z=>[Math.round(z.x),Math.round(z.y),Math.round(z.r),+(z.t/z.dur).toFixed(2),z.col,z.friendly?1:0]);
  const ds=drops.map(d=>[d.nid||(d.nid=NID++),Math.round(d.x),Math.round(d.y),d.id,d.rare?1:0]);
  const eo=energyOrbs.map(o=>[Math.round(o.x),Math.round(o.y)]);
@@ -1556,15 +1561,25 @@ function buildSnap(){
 }
 function applySnap(d){
  // มอน (สร้าง object ชั่วคราวสำหรับวาด)
- enemies=d.e.map(a=>{const def=ENEMIES[a[1]];return {nid:a[0],def2:def,x:a[2],y:a[3],face:a[4],hp:a[5],maxhp:a[6],
-  elite:a[7]===1,r:def.r*(a[7]===1?1.35:1),state:a[8]===1?'windup':'chase',hurtT:0,windDir:0,
-  tiredT:(a[9]&1)?1:0,sleepT:(a[9]&2)?1:0,poisonT:0,burnT:0,slowT:0}});
- bosses=d.b.map(a=>{const bd=BOSSDEF.find(x=>x.type===a[1])||SHADOWDEF;return {nid:a[0],type:a[1],bdef:bd,x:a[2],y:a[3],face:a[4],
-  hp:a[5],maxhp:a[6],active:a[7]===1,gateSolid:a[7]===1,invuln:a[8]===1,st:a[9],exhaustT:a[10]/10,t:a[11]?0:1,state2:a[12]||'',
-  r:bd.r,hurtT:0,pillars:[],phase:0,beamT:0,breathT:0}});
+ // มอน/บอส: interpolate ให้ลื่น — จับคู่ตัวเดิมด้วย nid เก็บตำแหน่ง "ที่วาดอยู่" (x,y) ไว้ ตั้งเป้าใหม่ (tx,ty) แล้วให้ smoothRemotes ค่อยๆไหลเข้าหาเป้าทุกเฟรม (snapshot มา 15/วิ แต่จอวาด 60fps)
+ const oldE={};for(const e of enemies)if(e.nid!==undefined)oldE[e.nid]=e;
+ enemies=d.e.map(a=>{const def=ENEMIES[a[1]];const e=oldE[a[0]]||{x:a[2],y:a[3],hurtT:0};
+  e.nid=a[0];e.def2=def;e.tx=a[2];e.ty=a[3];e.face=a[4];e.hp=a[5];e.maxhp=a[6];
+  e.elite=a[7]===1;e.r=def.r*(a[7]===1?1.35:1);e.state=a[8]===1?'windup':'chase';e.windDir=0;
+  e.tiredT=(a[9]&1)?1:0;e.sleepT=(a[9]&2)?1:0;e.poisonT=0;e.burnT=0;e.slowT=0;
+  if(e.x===undefined){e.x=a[2];e.y=a[3];}if(e.hurtT===undefined)e.hurtT=0;
+  return e;});
+ const oldB={};for(const b of bosses)if(b.nid!==undefined)oldB[b.nid]=b;
+ bosses=d.b.map(a=>{const bd=BOSSDEF.find(x=>x.type===a[1])||SHADOWDEF;const b=oldB[a[0]]||{x:a[2],y:a[3],hurtT:0};
+  b.nid=a[0];b.type=a[1];b.bdef=bd;b.tx=a[2];b.ty=a[3];b.face=a[4];
+  b.hp=a[5];b.maxhp=a[6];b.active=a[7]===1;b.gateSolid=a[7]===1;b.invuln=a[8]===1;b.st=a[9];b.exhaustT=a[10]/10;b.t=a[11]?0:1;b.state2=a[12]||'';
+  b.r=bd.r;b.pillars=b.pillars||[];b.phase=0;b.beamT=0;b.breathT=0;
+  if(b.x===undefined){b.x=a[2];b.y=a[3];}if(b.hurtT===undefined)b.hurtT=0;
+  return b;});
  const mine=projs.filter(p=>p.from==='player'); // เก็บกระสุนของเราเองไว้ (host ไม่ได้ส่งมา)
- projs=d.p.map(a=>({x:a[0],y:a[1],col:a[2],r:a[3],arrow:a[4]===1,a:a[5],from:'enemy',
-  dmg:a[6]||12,eff:a[7]?{poison:(a[7]&1)?8:0,burn:(a[7]&2)?12:0,slowShot:(a[7]&4)?1:0}:null}));
+ projs=d.p.map(a=>{const spd=a[8]||0;return {x:a[0],y:a[1],col:a[2],r:a[3],arrow:a[4]===1,a:a[5],from:'enemy',
+  vx:Math.cos(a[5])*spd,vy:Math.sin(a[5])*spd, // เดินกระสุนต่อเองระหว่าง snapshot (clientHazards) ให้ลื่น
+  dmg:a[6]||12,eff:a[7]?{poison:(a[7]&1)?8:0,burn:(a[7]&2)?12:0,slowShot:(a[7]&4)?1:0}:null}});
  for(const p of mine)projs.push(p);
  const myZones=zones.filter(z=>z.mine); // โซนเวทของเราเอง (สกิลเมจฝั่ง client) — เดิมโดน snapshot ทับหายเกลี้ยงทุก 66ms = สกิลเมจของเพื่อนไม่เคยทำดาเมจเลย
  zones=d.z.map(a=>({x:a[0],y:a[1],r:a[2],t:a[3],dur:1,col:a[4],friendly:a[5]===1,dmg:0}));
@@ -1572,10 +1587,11 @@ function applySnap(d){
  drops=d.d.map(a=>({nid:a[0],x:a[1],y:a[2],id:a[3],rare:a[4]===1,t:0}));
  energyOrbs=d.o.map(a=>({x:a[0],y:a[1],t:5}));
  if(d.c)chests=d.c.map(a=>({nid:a[0],x:a[1],y:a[2],trap:a[3]===1,opened:a[4]===1,secret:a[5]===1,item:a[6]||null}));
- // ผู้เล่นคนอื่น = host + rem (ยกเว้นตัวเราเอง)
- net.remote={};
- if(d.host)net.remote['host']=d.host;
- for(const k in d.rem)if(k!==net.id)net.remote[k]=d.rem[k];
+ // ผู้เล่นคนอื่น = host + rem (ยกเว้นตัวเราเอง) — ยกตำแหน่งสมูธ (_dx/_dy) จากรอบก่อนมาต่อ ไม่งั้นเพื่อนจะกระตุก (snapshot สร้าง object ใหม่ทุกครั้ง เลยต้องอุ้ม _dx มาเอง)
+ const oldRem=net.remote;net.remote={};
+ const carry=(nw,k)=>{const o=oldRem[k];if(o&&o._dx!==undefined){nw._dx=o._dx;nw._dy=o._dy;}};
+ if(d.host){net.remote['host']=d.host;carry(d.host,'host');}
+ for(const k in d.rem)if(k!==net.id){net.remote[k]=d.rem[k];carry(d.rem[k],k);}
  game.phase=d.ph;game.dw=d.dw;game.clock=d.clk;
  if(d.wx){const w=game.weather||(game.weather={flash:0});w.type=d.wx[0];w.intensity=d.wx[1];w.wind=d.wx[2];if(d.wx[3]>w.flash)w.flash=d.wx[3];}
  if(d.shake)game.shake=Math.max(game.shake,4);
@@ -1585,6 +1601,30 @@ function applySnap(d){
  if(d.bb){bar.style.display='block';document.getElementById('bossName').textContent=d.bb[0];
   document.getElementById('bossFill').style.width=d.bb[1]+'%';document.getElementById('bossStFill').style.width=d.bb[2]+'%'}
  else bar.style.display='none';
+}
+// ── สมูธการเคลื่อนที่ของทุกอย่างที่มาจากเน็ต (มอน/บอส/เพื่อน) — เรียกทุกเฟรม ให้ตำแหน่งวาดค่อยๆไหลเข้าหาเป้าจาก snapshot ล่าสุด แทนที่จะกระโดด 15 ครั้ง/วิ ──
+function smoothRemotes(dt){
+ if(!coop())return;
+ const k=Math.min(1,20*dt); // อัตราไล่เข้าหาเป้า (~0.32/เฟรมที่ 60fps) — ลื่นแต่ไม่หน่วง
+ // เพื่อนร่วมทีม (ทั้ง host และ client เห็นเพื่อนผ่านเน็ต)
+ for(const key in net.remote){
+  const r=net.remote[key];if(!r)continue;
+  if(r._dx===undefined||Math.hypot(r.x-r._dx,r.y-r._dy)>200){r._dx=r.x;r._dy=r.y;} // ห่างมาก = วาร์ป/ฟื้น → สแนปตรง
+  else{r._dx+=(r.x-r._dx)*k;r._dy+=(r.y-r._dy)*k;}
+ }
+ if(!isClient())return; // มอน/บอส: เฉพาะ client (host มีตัวจริงอยู่แล้ว)
+ for(const e of enemies){
+  if(e.tx===undefined)continue;
+  if(Math.hypot(e.x-e.tx,e.y-e.ty)>240){e.x=e.tx;e.y=e.ty;} // เกิดใหม่/วาร์ป → สแนป
+  else{e.x+=(e.tx-e.x)*k;e.y+=(e.ty-e.y)*k;}
+  if(e.hurtT>0)e.hurtT=Math.max(0,e.hurtT-dt);
+ }
+ for(const b of bosses){
+  if(b.tx===undefined)continue;
+  if(Math.hypot(b.x-b.tx,b.y-b.ty)>300){b.x=b.tx;b.y=b.ty;}
+  else{b.x+=(b.tx-b.x)*k;b.y+=(b.ty-b.y)*k;}
+  if(b.hurtT>0)b.hurtT=Math.max(0,b.hurtT-dt);
+ }
 }
 // ── อัพเดตเน็ตต่อเฟรม ──
 function netUpdate(dt){
@@ -1617,8 +1657,9 @@ function clientHazards(dt){
     }
    }
    if(hit&&!p.pierce){if(p.boom)boomProj(p);projs.splice(i,1)}
-  }else if(p.from==='enemy'&&P.ifr<=0){ // กระสุนศัตรู — โดนตัวเราเอง
-   if(Math.hypot(p.x-P.x,p.y-P.y)<(p.r||6)+P.r){hurtPlayer(p.dmg||12,p.eff);projs.splice(i,1)}
+  }else if(p.from==='enemy'){ // กระสุนศัตรู — เดินต่อเองระหว่าง snapshot ให้ลื่น (ไม่กระตุก) + ตรวจโดนตัวเราเอง
+   p.x+=(p.vx||0)*dt;p.y+=(p.vy||0)*dt;
+   if(P.ifr<=0&&Math.hypot(p.x-P.x,p.y-P.y)<(p.r||6)+P.r){hurtPlayer(p.dmg||12,p.eff);projs.splice(i,1)}
   }
  }
  // โซนเวทของเราเอง (client เมจ) — นับเวลา+ระเบิดเองในเครื่องเรา แล้วส่งดาเมจให้ host ผ่าน hitEnemy ตามปกติ
@@ -1643,9 +1684,8 @@ function drawRemotePlayers(){
  for(const k in net.remote){
   const r=net.remote[k];if(!r||Date.now()/1000-(r.last||0)>3)continue;
   if(r.hp<=0&&!r.downed)continue; // hp<=0 แต่ไม่ใช่สถานะ "ล้ม" (เช่น ฮาร์ดคอร์ตายจริง) — ไม่ต้องวาด
-  // ตำแหน่งที่วาดจริงสมูธเข้าหาตำแหน่งล่าสุด (สแนปช็อตมาแค่ ~15 ครั้ง/วิ แต่จอวาด ~60 — ไม่งั้นเพื่อนจะเดินกระตุกเป็นสเต็ป) เว้นแต่ห่างมากผิดปกติ (วาร์ป/ฟื้น) ก็สแนปตรงเลย
-  if(r._dx===undefined||Math.hypot(r.x-r._dx,r.y-r._dy)>150){r._dx=r.x;r._dy=r.y}
-  else{r._dx=lerp(r._dx,r.x,.2);r._dy=lerp(r._dy,r.y,.2)}
+  // ตำแหน่งวาดสมูธ (_dx/_dy) คำนวณไว้แล้วใน smoothRemotes ทุกเฟรม — ที่นี่แค่อ่านมาใช้
+  if(r._dx===undefined){r._dx=r.x;r._dy=r.y}
   const [sx,sy]=W2S(r._dx,r._dy);
   if(sx<-40||sy<-40||sx>cv.width+40||sy>cv.height+40)continue;
   const J=JOBS[r.job]||JOBS.novice;
@@ -2774,6 +2814,12 @@ function updateEnemy(e,dt){
  e.slowT=Math.max(0,e.slowT-dt);
  if(e.sleepT>0){e.sleepT-=dt;return} // โดนระฆังกล่อมหลับ
  let T=(game.decoy&&game.decoy.t>0)?game.decoy:(coop()?nearestPlayer(e.x,e.y):P); // หุ่นล่อ / ผู้เล่นใกล้สุด (co-op)
+ // 👻 Ghost เมินนักผจญภัย (novice) — ไม่มีสกิล R/Q/T สู้ผีไม่ได้ ผีเลยหันไปเล่นงานอาชีพอื่นแทน / ถ้าทั้งทีมเป็น novice หมด ผีก็ลอยเมินไปเฉยๆ (ยังโดนหุ่นล่อ decoy หลอกได้)
+ if(e.def2.ghostImmune&&T!==game.decoy){
+  const alt=nearestNonNovice(e.x,e.y);
+  if(alt)T=alt;
+  else{e.aggro=false;if(dist(e,e.home)>30)smartMove(e,ang(e,e.home),e.spd*.4,dt);return;}
+ }
  // ── คู่อริ: บางเผ่าไม่ถูกกัน เจอกันเมื่อไรซัดกันเอง ──
  const rid=RIVALS[e.def2.key];
  if(rid&&!e.minion&&T===P){
@@ -5764,6 +5810,7 @@ function loopBody(ts){
   updateBossRally(dt);
   updateFxTexts(dt);
   updateAmbience(dt);
+  smoothRemotes(dt); // ทำให้มอน/บอส/เพื่อน เดินลื่นบนจอ client (interpolate ระหว่าง snapshot)
   if(!isClient()){ // host/เดี่ยว: คุมโลก | client: รับ snapshot มาวาด
    for(let i=enemies.length-1;i>=0;i--)updateEnemy(enemies[i],dt);
    for(const b of [...bosses])updateBoss(b,dt);
