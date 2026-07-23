@@ -137,6 +137,10 @@
   #downedProgress{color:#7ad080;font-size:15px;min-height:22px;margin-bottom:16px}
   #btnDownedBonfire{pointer-events:auto}
   #vignette{position:absolute;inset:0;pointer-events:none;z-index:5;box-shadow:inset 0 0 180px rgba(0,0,0,.85)}
+  #tutBox{position:fixed;bottom:118px;left:50%;transform:translateX(-50%);z-index:30;display:none;max-width:min(600px,92vw);
+    background:rgba(14,10,22,.95);border:2px solid #c9a55a;border-radius:12px;padding:11px 18px;text-align:center;font-size:15px;color:#e8e0d0;box-shadow:0 4px 20px #000a;animation:tutPulse 2s infinite}
+  #tutBox b{color:#ffd060}
+  @keyframes tutPulse{50%{border-color:#ffe9b0}}
 </style>
 </head>
 <body>
@@ -152,6 +156,7 @@
   <div id="hudInfo"></div>
 </div>
 <div id="biomeName"></div>
+<div id="tutBox"></div>
 <button id="dodgeBtn" title="ระบบหลบแบบดิจิตอล — กลิ้งถอยหลังอัตโนมัติเมื่อมีท่าโจมตีเข้าใกล้ [B]" onclick="toggleDodgeAssist()">🌀 หลบอัตโนมัติ: ปิด</button>
 <canvas id="minimap" width="200" height="200" style="display:none"></canvas>
 <button id="coopLogoutBtn" class="danger">🚪 ออกจากเกม</button>
@@ -212,16 +217,6 @@
     <button id="btnCharBack" style="margin-top:6px;border-color:#8a3030">← เปลี่ยนตัวละคร</button>
   </div>
 
-  <div class="ctrl">
-    <b>WASD/ลูกศร</b> เดิน &nbsp;•&nbsp; <b>เมาส์</b> หันหน้า/เล็ง &nbsp;•&nbsp; <b>คลิกซ้าย/J</b> โจมตี (กดค้าง=ชาร์จท่าพิเศษ) &nbsp;•&nbsp; <b>คลิกขวา</b> โจมตีหนัก<br>
-    <b>Space</b> กลิ้งหลบ &nbsp;•&nbsp; <b>1</b> ขวดวิญญาณ (หรือคลิกไอคอนข้างเลือด) &nbsp;•&nbsp; <b>R</b> สกิล &nbsp;•&nbsp; <b>กดสกรอลล์เมาส์</b> ปักหมุด (เพื่อนในทีมเห็นด้วย)<br>
-    <b>E</b> คุย/เปิดหีบ/ใช้ไอเท็มหีบ &nbsp;•&nbsp; ระวังหลุมลึกกับหีบกับดัก… และลองฟันกำแพงแปลกๆ ดู<br>
-    <b>E</b> คุยกับเช็คพอยท์ (อัพเลเวล/อาชีพ/คราฟ/วาร์ป/พัก) &nbsp;•&nbsp; <b>I</b> กระเป๋า &nbsp;•&nbsp; <b>B</b> ระบบหลบแบบดิจิตอล &nbsp;•&nbsp; <b>Esc</b> ปิดเมนู<br>
-    เก็บ Job Lv.10 แล้วทำเควสเปลี่ยนอาชีพ: นักรบ / นักเวท / นักธนู / นักบวช / ซัมมอนเนอร์ (ขวดวิญญาณ +1 ทุก 5 Job Lv)<br>
-    Job Lv.50 เต็มขั้น + ปราบบอสแล้ว 3 ตัว → เควสคลาส 2 ที่ NPC เดิม ปลดล็อก <b>Q</b> สกิลใหม่ + <b>T</b> อัลติเมท (สกิล [R] เดิมยังอยู่)<br>
-    Co-op: เพื่อนล้มลง? เข้าใกล้แล้วกดค้าง <b>F</b> นาน 3 วิเพื่อชุบ (ฟื้นมา 50% เลือด/สตามิน่า)<br>
-    เลเวลอัพได้ที่เช็คพอยท์เท่านั้น • ของแรร์ดรอป 0.01% • บอสทุกตัวมีกิมมิค — โชคดี ผู้หลงทาง
-  </div>
 </div>
 
 <div id="coopPanel" style="position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(6,5,12,.9)">
@@ -256,7 +251,8 @@
 
     <div id="coopLobby" style="display:none">
       <div style="text-align:center;margin:6px 0 12px">รหัสห้อง: <b id="coopRoomCode" style="color:#ffd040;font-size:24px;letter-spacing:4px">—</b>
-        <div style="font-size:12px;color:#8a80a0">ส่งรหัสนี้ให้เพื่อนพิมพ์เข้าห้อง</div></div>
+        <button id="coopCopyCode" style="margin-left:8px;font-size:13px;padding:4px 12px;vertical-align:middle">📋 คัดลอก</button>
+        <div style="font-size:12px;color:#8a80a0;margin-top:4px">ส่งรหัสนี้ให้เพื่อนพิมพ์เข้าห้อง</div></div>
       <div style="background:rgba(255,255,255,.04);border:1px solid #3a3248;border-radius:9px;padding:10px 14px;margin-bottom:12px">
         <div style="color:#7ab0e0;font-size:13px;margin-bottom:4px">ผู้เล่นในห้อง:</div>
         <div id="coopPlayers"></div>
@@ -1252,6 +1248,9 @@ function onHostData(conn,d){
   const idx=drops.findIndex(x=>x.nid===d.nid);
   if(idx>=0)drops.splice(idx,1);
  }
+ else if(d.t==='pproj'){spawnRemoteProj(d);bcastExcept(d,conn)} // แอคชั่นเพื่อน (กระสุน/โซน/เอฟเฟกต์) — host เห็นด้วย + ส่งต่อให้ client คนอื่น
+ else if(d.t==='pzone'){spawnRemoteZone(d);bcastExcept(d,conn)}
+ else if(d.t==='pfx'){const a=d.d;addFx(a[0],a[1],a[2],a[3],a[4]);bcastExcept(d,conn)}
  else if(d.t==='dead'){r.hp=0}
  else if(d.t==='gjoin'){ // client กดเข้าร่วมกองไฟ
   const c=CPS[d.cpId];if(c)hostGatherJoin(conn._pid,d.name||r.name||'ผู้กล้า',c,conn);
@@ -1329,6 +1328,9 @@ function onClientData(conn,d,code){
   toast('พักผ่อนแล้ว... โลกกลับมามีชีวิตอีกครั้ง','#ffb060');sfx('flask');
  }
  else if(d.t==='ping'){addPing(d.x,d.y,d.name)}
+ else if(d.t==='pproj'){spawnRemoteProj(d)} // เห็นกระสุนเพื่อน
+ else if(d.t==='pzone'){spawnRemoteZone(d)} // เห็นโซนสกิลเพื่อน
+ else if(d.t==='pfx'){const a=d.d;addFx(a[0],a[1],a[2],a[3],a[4])} // เห็นเอฟเฟกต์สกิลเพื่อน
  else if(d.t==='secret'){applySecretOpen(d.idx)} // เพื่อนเจอห้องลับ — เปิดกำแพงในแมพเราด้วย เดินผ่านได้ตรงกัน
  else if(d.t==='bgstatus'){applyBossRallyStatus(d)}
  else if(d.t==='bgclose'){document.getElementById('bossRallyPanel').style.display='none'}
@@ -1616,8 +1618,8 @@ function buildSnap(){
  const bs=bosses.map(b=>[nid(b),b.type,Math.round(b.x),Math.round(b.y),+b.face.toFixed(2),Math.round(b.hp),Math.round(b.maxhp),
   b.active?1:0,b.invuln?1:0,Math.round(b.st||100),Math.round((b.exhaustT||0)*10),(b.t<.5&&b.t>-.5)?1:0,b.state2||'']);
  const ps=projs.filter(p=>p.from==='enemy'&&near(p.x,p.y)).map(p=>[Math.round(p.x),Math.round(p.y),p.col,p.r,p.arrow?1:0,+((p.a||0).toFixed(2)),
-   Math.round(p.dmg||0),(p.eff?((p.eff.poison?1:0)|(p.eff.burn?2:0)|(p.eff.slowShot?4:0)):0),Math.round(Math.hypot(p.vx||0,p.vy||0))]); // [8]=speed → client เอาไปเดินกระสุนต่อเองระหว่าง snapshot ให้ลื่น
- const zs=zones.map(z=>[Math.round(z.x),Math.round(z.y),Math.round(z.r),+(z.t/z.dur).toFixed(2),z.col,z.friendly?1:0,z.rock?1:0]);
+   Math.round(p.dmg||0),(p.eff?((p.eff.poison?1:0)|(p.eff.burn?2:0)|(p.eff.slowShot?4:0)):0),Math.round(Math.hypot(p.vx||0,p.vy||0)),nid(p)]); // [8]=speed [9]=nid → client จับคู่กระสุนตัวเดิม เดินต่อเนื่องไม่กระโดด
+ const zs=zones.filter(z=>!z.remote).map(z=>[Math.round(z.x),Math.round(z.y),Math.round(z.r),+(z.t/z.dur).toFixed(2),z.col,z.friendly?1:0,z.rock?1:0]); // ไม่ส่งโซนที่รีเลย์มาจากเพื่อน (กันซ้ำกับ pzone)
  const ds=drops.map(d=>[d.nid||(d.nid=NID++),Math.round(d.x),Math.round(d.y),d.id,d.rare?1:0]);
  const eo=energyOrbs.map(o=>[Math.round(o.x),Math.round(o.y),o.nid]);
  const cs=chests.map(c=>[nid(c),Math.round(c.x),Math.round(c.y),c.trap?1:0,c.opened?1:0,c.secret?1:0,c.item||'']);
@@ -1648,12 +1650,15 @@ function applySnap(d){
   b.r=bd.r;b.pillars=b.pillars||[];b.phase=0;b.beamT=0;b.breathT=0;
   if(b.x===undefined){b.x=a[2];b.y=a[3];}if(b.hurtT===undefined)b.hurtT=0;
   return b;});
- const mine=projs.filter(p=>p.from==='player'); // เก็บกระสุนของเราเองไว้ (host ไม่ได้ส่งมา)
- projs=d.p.map(a=>{const spd=a[8]||0;return {x:a[0],y:a[1],col:a[2],r:a[3],arrow:a[4]===1,a:a[5],from:'enemy',
-  vx:Math.cos(a[5])*spd,vy:Math.sin(a[5])*spd, // เดินกระสุนต่อเองระหว่าง snapshot (clientHazards) ให้ลื่น
-  dmg:a[6]||12,eff:a[7]?{poison:(a[7]&1)?8:0,burn:(a[7]&2)?12:0,slowShot:(a[7]&4)?1:0}:null}});
+ const mine=projs.filter(p=>p.from==='player'||p.from==='remote'); // เก็บกระสุนของเราเอง + ของเพื่อน (host ไม่ได้ส่งมาใน snapshot)
+ // กระสุนศัตรู: จับคู่ตัวเดิมด้วย nid — เก็บตำแหน่งที่ extrapolate ไว้ อัพเดตแค่ความเร็ว → เดินต่อเนื่องลื่น ไม่กระโดดกลับทุก snapshot
+ const oldP={};for(const p of projs)if(p.from==='enemy'&&p.nid!==undefined)oldP[p.nid]=p;
+ projs=d.p.map(a=>{const spd=a[8]||0,nidv=a[9],vx=Math.cos(a[5])*spd,vy=Math.sin(a[5])*spd,old=oldP[nidv];
+  if(old){old.vx=vx;old.vy=vy;old.dmg=a[6]||12;return old;} // เดินต่อจากตำแหน่งเดิม (ไม่รีเซ็ต x/y)
+  return {nid:nidv,x:a[0],y:a[1],col:a[2],r:a[3],arrow:a[4]===1,a:a[5],from:'enemy',vx,vy,
+   dmg:a[6]||12,eff:a[7]?{poison:(a[7]&1)?8:0,burn:(a[7]&2)?12:0,slowShot:(a[7]&4)?1:0}:null};});
  for(const p of mine)projs.push(p);
- const myZones=zones.filter(z=>z.mine); // โซนเวทของเราเอง (สกิลเมจฝั่ง client) — เดิมโดน snapshot ทับหายเกลี้ยงทุก 66ms = สกิลเมจของเพื่อนไม่เคยทำดาเมจเลย
+ const myZones=zones.filter(z=>z.mine||z.remote); // โซนเวทของเราเอง + ของเพื่อน (relay) — ไม่โดน snapshot ทับ
  zones=d.z.map(a=>({x:a[0],y:a[1],r:a[2],t:a[3],dur:1,col:a[4],friendly:a[5]===1,rock:a[6]===1,dmg:0}));
  for(const z of myZones)zones.push(z);
  drops=d.d.map(a=>({nid:a[0],x:a[1],y:a[2],id:a[3],rare:a[4]===1,t:0}));
@@ -1702,17 +1707,84 @@ function smoothRemotes(dt){
 // ── อัพเดตเน็ตต่อเฟรม ──
 function netUpdate(dt){
  if(!coop())return;
+ relayMyActions(); // ส่งกระสุน/โซน/เอฟเฟกต์สกิลของเราให้เพื่อนเห็น (ทั้ง host และ client)
  if(isHost()){
   net.snapAcc+=dt;
-  if(net.snapAcc>=1/15){net.snapAcc=0;const s=buildSnap();bcast(s);checkTeamWipe()}
+  if(net.snapAcc>=1/22){net.snapAcc=0;const s=buildSnap();bcast(s);checkTeamWipe()} // เพิ่มเรตจาก 15→22Hz ให้มอนลื่นขึ้น
  }else if(isClient()){
   net.sendAcc+=dt;
-  if(net.sendAcc>=1/20){net.sendAcc=0;
+  if(net.sendAcc>=1/22){net.sendAcc=0;
    sendHost({t:'ps',s:localPlayerState()});
   }
   // client ตรวจโดนกระสุน/โซนด้วยตัวเอง (เจ้าของ HP ตัวเอง)
   clientHazards(dt);
  }
+}
+// ── ส่งแอคชั่นของผู้เล่นเราให้เพื่อนเห็น (กระสุน/โซนสกิล/เอฟเฟกต์) — ของพวกนี้ไม่ได้อยู่ใน snapshot ปกติ ──
+let netFxQueue=[];
+function netAct(x,y,col,n,spd){ // เรียกจากสกิลประชิด (วอร์/บวช/ซัมมอน) ให้เพื่อนเห็นแสงสกิล
+ if(coop())netFxQueue.push([Math.round(x),Math.round(y),col,n||16,spd||160]);
+}
+function relayMyActions(){
+ if(!coop())return;
+ const msgs=[];
+ for(const p of projs){ // กระสุนผู้เล่นเรา (mage/archer/สกิล) — เพื่อนไม่เห็นเลยถ้าไม่ส่ง
+  if(p.from==='player'&&!p._bc){p._bc=1;
+   msgs.push({t:'pproj',x:Math.round(p.x),y:Math.round(p.y),vx:Math.round(p.vx),vy:Math.round(p.vy),col:p.col,r:p.r,arw:p.arrow?1:0,life:+(p.life||1).toFixed(2),boom:p.boom?1:0});}
+ }
+ if(isClient())for(const z of zones){ // โซนสกิลเมจของ client (ของ host ไปกับ snapshot อยู่แล้ว)
+  if(z.mine&&!z._bc){z._bc=1;
+   msgs.push({t:'pzone',x:Math.round(z.x),y:Math.round(z.y),r:Math.round(z.r),dur:+(z.dur||.7).toFixed(2),col:z.col});}
+ }
+ for(const fq of netFxQueue)msgs.push({t:'pfx',d:fq});
+ netFxQueue.length=0;
+ for(const m of msgs){if(isHost())bcast(m);else sendHost(m);}
+}
+function spawnRemoteProj(d){ // กระสุนเพื่อน (แสดงผลอย่างเดียว ไม่ทำดาเมจ — ดาเมจ host จัดการ)
+ projs.push({x:d.x,y:d.y,vx:d.vx,vy:d.vy,col:d.col,r:d.r,arrow:d.arw===1,a:Math.atan2(d.vy,d.vx),from:'remote',life:d.life||1.2,boom:d.boom===1});
+}
+function spawnRemoteZone(d){ // โซนสกิลเพื่อน (แสดงผลอย่างเดียว)
+ zones.push({x:d.x,y:d.y,r:d.r,t:d.dur,dur:d.dur,col:d.col,friendly:true,remote:true,dmg:0});
+}
+// ---------- บทฝึกสอน (โผล่ครั้งแรกที่เข้าโลกโหมดเดี่ยว) ----------
+const TUT_STEPS=[
+ '🎮 ใช้ <b>WASD</b> หรือ <b>ลูกศร</b> เพื่อเดิน • ขยับ <b>เมาส์</b> เพื่อเล็งทิศทาง',
+ '⚔ <b>คลิกซ้าย</b> หรือ <b>J</b> เพื่อโจมตี (กดค้าง = ชาร์จท่าพิเศษ • <b>คลิกขวา</b> = โจมตีหนัก)',
+ '🌀 กด <b>Space</b> เพื่อกลิ้งหลบ — ระหว่างกลิ้งจะอมตะชั่วครู่ (i-frame) ใช้หลบท่าบอส!',
+ '🧪 กด <b>1</b> หรือคลิกไอคอนขวด เพื่อฟื้นเลือด (ลองโดนมอนให้เลือดลดก่อน แล้วกดดู)',
+ '🔥 เดินไปที่ <b>กองไฟ</b> แล้วกด <b>E</b> — อัพเลเวล / เปลี่ยนอาชีพ / คราฟ / ตี+ / พักผ่อน',
+ '🎒 กด <b>I</b> เปิดกระเป๋า — เอาเมาส์ชี้ของเพื่อดูพลัง คลิกเพื่อสวมใส่',
+ '✅ พร้อมแล้ว! ระวังหลุมลึกกับหีบกับดัก… และลองฟันกำแพงแปลกๆ ดู — โชคดี ผู้หลงทาง',
+];
+function initTutorial(){
+ if(coop()||localStorage.getItem('soulsro_tutDone'))return; // เฉพาะโหมดเดี่ยว + ครั้งแรกเท่านั้น
+ game.tut={step:0,px:P.x,py:P.y,moved:0,flasks:P.flasks,tmr:0};
+ showTutStep();
+}
+function showTutStep(){
+ const box=document.getElementById('tutBox');
+ if(!game.tut||game.tut.step>=TUT_STEPS.length){box.style.display='none';return}
+ box.style.display='block';
+ box.innerHTML=`<div style="font-size:11px;color:#8a80a0;margin-bottom:3px">📖 บทฝึกสอน ${game.tut.step+1}/${TUT_STEPS.length}</div>${TUT_STEPS[game.tut.step]} <button id="tutSkip" style="margin-left:8px;font-size:11px;padding:2px 9px;pointer-events:auto">ข้ามทั้งหมด</button>`;
+ document.getElementById('tutSkip').onclick=endTutorial;
+}
+function advanceTut(){
+ if(!game.tut)return;
+ game.tut.step++;game.tut.tmr=0;sfx('lvl');
+ if(game.tut.step>=TUT_STEPS.length){showTutStep();document.getElementById('tutBox').style.display='block';document.getElementById('tutBox').innerHTML=TUT_STEPS[TUT_STEPS.length-1];setTimeout(endTutorial,4500);return}
+ showTutStep();
+}
+function endTutorial(){game.tut=null;localStorage.setItem('soulsro_tutDone','1');document.getElementById('tutBox').style.display='none'}
+function updateTutorial(dt){
+ if(!game.tut||game.state!=='play')return;
+ const t=game.tut,s=t.step;
+ t.tmr+=dt;
+ if(s===0){t.moved+=Math.hypot(P.x-t.px,P.y-t.py);t.px=P.x;t.py=P.y;if(t.moved>90)advanceTut()}
+ else if(s===1){if(P.atkT>0||P.atkCd>0.05||P.charging)advanceTut()}
+ else if(s===2){if(P.rollT>0)advanceTut()}
+ else if(s===3){if(P.flasks<t.flasks||t.tmr>18)advanceTut();t.flasks=Math.max(t.flasks,P.flasks)} // ใช้ขวด หรือรอ 18 วิ (กันติดถ้าเลือดเต็ม)
+ else if(s===4){if(game.overlay==='cp')advanceTut()}
+ else if(s===5){if(game.overlay==='inv')advanceTut()}
 }
 function clientHazards(dt){
  if(game.state!=='play')return;
@@ -1733,11 +1805,15 @@ function clientHazards(dt){
   }else if(p.from==='enemy'){ // กระสุนศัตรู — เดินต่อเองระหว่าง snapshot ให้ลื่น (ไม่กระตุก) + ตรวจโดนตัวเราเอง
    p.x+=(p.vx||0)*dt;p.y+=(p.vy||0)*dt;
    if(P.ifr<=0&&Math.hypot(p.x-P.x,p.y-P.y)<(p.r||6)+P.r){hurtPlayer(p.dmg||12,p.eff);projs.splice(i,1)}
+  }else if(p.from==='remote'){ // กระสุนเพื่อน — แสดงผลอย่างเดียว เดินไปเรื่อยๆ แล้วหายเมื่อหมดอายุ/ชนกำแพง
+   p.x+=(p.vx||0)*dt;p.y+=(p.vy||0)*dt;p.life-=dt;
+   if(p.life<=0||collides(p.x,p.y,3)){if(p.boom)addFx(p.x,p.y,'#ffb060',18,150);projs.splice(i,1)}
   }
  }
- // โซนเวทของเราเอง (client เมจ) — นับเวลา+ระเบิดเองในเครื่องเรา แล้วส่งดาเมจให้ host ผ่าน hitEnemy ตามปกติ
+ // โซนเวทของเราเอง (client เมจ) — นับเวลา+ระเบิดเองในเครื่องเรา | โซนเพื่อน (remote) — นับเวลาโชว์อย่างเดียว
  for(let i=zones.length-1;i>=0;i--){
   const z=zones[i];
+  if(z.remote){z.t-=dt;if(z.t<=0){addFx(z.x,z.y,z.col,10,z.r*2);zones.splice(i,1)}continue}
   if(!z.mine)continue;
   z.t-=dt;
   if(z.t<=0){
@@ -2184,6 +2260,7 @@ function chargedAttack(){
  P.face=Math.atan2(mouse.y-cv.height/2,mouse.x-cv.width/2);
  sfx('boss');game.shake=4;
  const f=P.face;
+ netAct(P.x+Math.cos(f)*40,P.y+Math.sin(f)*40,JOBS[P.job].c,18,180); // ให้เพื่อนเห็นแสงชาร์จ
  switch(P.job){
   case 'warrior':{ // ⚔ ฟันยักษ์: ฟันหน้ากว้าง 2.5 เท่า + ศัตรูกระเด็น
    for(const e of playerTargets()){
@@ -2240,6 +2317,7 @@ function tryHeavy(){
  P.face=Math.atan2(mouse.y-cv.height/2,mouse.x-cv.width/2);
  sfx('boss');game.shake=5;
  const f=P.face;
+ netAct(P.x+Math.cos(f)*45,P.y+Math.sin(f)*45,'#ffd040',20,190); // ให้เพื่อนเห็นแสงโจมตีหนัก
  switch(P.job){
   case 'mage':{ // ⚡ ลำแสงทะลวง: เส้นตรงทันที 340px โดนทุกตัวในแนว
    for(let rr=30;rr<=340;rr+=22)addFx(P.x+Math.cos(f)*rr,P.y+Math.sin(f)*rr,'#8ab0ff',2,40);
@@ -2300,7 +2378,7 @@ function useSkill(){
  if(P.job==='warrior'){
   if(P.st<35){tired();return}P.st-=35;P.skillCd=J.skill.cd*cdMul();P.atkT=.18;sfx('swing');game.shake=5;
   for(const e of playerTargets())if(dist(P,e)<80+e.r)hitEnemy(e,1.7,false,'skill');
-  addFx(P.x,P.y,'#fff',16,170);
+  addFx(P.x,P.y,'#fff',16,170);netAct(P.x,P.y,'#fff',16,170);
  }else if(P.job==='mage'){
   if(P.st<25){tired();return}P.st-=25;P.skillCd=J.skill.cd*cdMul();sfx('boss');
   const [wx,wy]=mageAim(); // จำกัดระยะร่าย + โชว์วงระยะรอบตัว
@@ -2320,11 +2398,11 @@ function useSkill(){
   if(P.job2)partyHealPulse(heal*(JOBS2.priest.partyHeal||0)/100);
   // ⚡ คลื่นแสงศักดิ์สิทธิ์: ฮีลตัวเอง + ทำดาเมจ (นับเป็นสกิล) รอบตัว — ตอนนี้สู้ Ghost ได้แล้ว
   for(const e of playerTargets())if(dist(P,e)<130+e.r)hitEnemy(e,1.6,false,'skill');
-  addFx(P.x,P.y,'#ffe9b0',26,150);addDmg(P.x,P.y-24,'+'+fmt(heal),'#ffe9b0',true);
+  addFx(P.x,P.y,'#ffe9b0',26,150);addDmg(P.x,P.y-24,'+'+fmt(heal),'#ffe9b0',true);netAct(P.x,P.y,'#ffe9b0',22,150);
   for(let i=0;i<10;i++){const a=i/10*TAU;addFx(P.x+Math.cos(a)*80,P.y+Math.sin(a)*80,'#fff0c0',2,60)}
  }else if(P.job==='summoner'){
   P.skillCd=J.skill.cd*cdMul();P.frenzyT=6;sfx('boss');
-  summons.forEach(s=>addFx(s.x,s.y,'#c090ff',10,110));
+  summons.forEach(s=>addFx(s.x,s.y,'#c090ff',10,110));netAct(P.x,P.y,'#c090ff',18,150);
   toast('วิญญาณคลั่ง! ดาเมจ x2 (6 วิ)','#c090ff');
  }
 }
@@ -2332,6 +2410,7 @@ function useSkill(){
 function useSkill2(){
  if(!P.job2||P.skill2Cd>0||P.rollT>0)return;
  const J=JOBS2[P.job]; if(!J||!J.skill2)return;
+ netAct(P.x,P.y,JOBS2[P.job].c||'#e0a0ff',20,170); // ให้เพื่อนเห็นแสงสกิลคลาส 2
  if(P.job==='warrior'){
   if(P.st<30){tired();return}P.st-=30;P.skill2Cd=J.skill2.cd*cdMul();P.atkT=.18;sfx('swing');game.shake=6;
   const steps=6,dashLen=180,hitSet=new Set();let totalDmg=0;
@@ -2377,6 +2456,7 @@ function useUlt(){
  if(!P.job2||P.ultCd>0)return;
  const J=JOBS2[P.job]; if(!J||!J.ult)return;
  P.ultCd=J.ult.cd*cdMul();sfx('rare');game.shake=10;
+ netAct(P.x,P.y,'#ffd040',34,220); // ให้เพื่อนเห็นแสงอัลติเมท
  if(P.job==='warrior'){
   P.ultBuffT=8;toast('อวตารเพชฌฆาต! (8 วิ)','#ff6050');addFx(P.x,P.y,'#ff6050',30,200);
  }else if(P.job==='mage'){
@@ -4316,6 +4396,7 @@ function startGame(mode,fresh,coopClient){
  rainDrops=[];windLeaves=[];fogBlobs=[];pings=[];
  dodgeAssist.on=false;dodgeAssist.cd=0;updateDodgeBtn();
  game.inDungeon=null;game.shadowHold=false;game.ngPrompt=false;game.flipT=0;game.glitchT=0;game.warpHover=null;
+ game.tut=null;document.getElementById('tutBox').style.display='none';
  document.getElementById('ngPanel').style.display='none';document.getElementById('talkReady').style.display='none';
  game.state='play';game.overlay=null;
  document.getElementById('title').style.display='none';
@@ -4329,12 +4410,14 @@ function startGame(mode,fresh,coopClient){
  cam.x=P.x;cam.y=P.y;
  announce(coopClient?'🤝 เข้าร่วมเกมเจ้าภาพ!':(game.mode==='hc'?'💀 โหมดฮาร์ดคอร์ — ห้ามตาย':'ดินแดนมิดการ์ดที่ล่มสลาย'),'#c9a55a');
  if(fresh&&!coopClient){game.overlay='intro';document.getElementById('intro').style.display='flex'} // เนื้อเรื่องบทนำ
+ else initTutorial(); // ไม่มีบทนำ (โหลดตัวเก่า) → เริ่มฝึกสอนเลยถ้ายังไม่เคย
  if(isClient())sendHost({t:'join',s:localPlayerState(true)});
  saveGame();
 }
 document.getElementById('introBtn').onclick=()=>{
  document.getElementById('intro').style.display='none';
  if(game.overlay==='intro')game.overlay=null;
+ initTutorial(); // ปิดบทนำแล้ว → เริ่มบทฝึกสอน (โหมดเดี่ยว ครั้งแรก)
 };
 
 // ---------- คีย์ ----------
@@ -4535,6 +4618,15 @@ document.getElementById('coopJoinBtn').onclick=()=>{
 };
 document.getElementById('coopJoinGo').onclick=()=>{document.getElementById('coopMenu').style.display='none';joinRoom()};
 document.getElementById('coopHostStart').onclick=coopStart;
+document.getElementById('coopCopyCode').onclick=()=>{ // คัดลอกรหัสห้องไปวางส่งเพื่อน
+ const code=net.roomCode||'';if(!code)return;
+ const done=()=>{const b=document.getElementById('coopCopyCode');b.textContent='✅ คัดลอกแล้ว!';setTimeout(()=>b.textContent='📋 คัดลอก',1600)};
+ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(done).catch(()=>{fallbackCopy(code);done()})}
+ else{fallbackCopy(code);done()}
+};
+function fallbackCopy(text){ // เผื่อ clipboard API ใช้ไม่ได้ (เช่น http ไม่ปลอดภัย)
+ try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta)}catch(e){}
+}
 document.getElementById('coopBack').onclick=leaveCoop;
 window.addEventListener('beforeunload',()=>saveGame());
 setInterval(()=>{if(game.state==='play')saveGame()},30000);
@@ -6005,6 +6097,7 @@ function loopBody(ts){
   updateAmbience(dt);
   smoothRemotes(dt); // ทำให้มอน/บอส/เพื่อน เดินลื่นบนจอ client (interpolate ระหว่าง snapshot)
   if(game.state==='play'&&!P.downed)pickupEnergyOrbs(); // ทุกคนเก็บลูกพลังของตัวเองได้ (solo + co-op ทุกคน)
+  if(game.tut)updateTutorial(dt); // บทฝึกสอนครั้งแรก (โหมดเดี่ยว)
   if(!isClient()){ // host/เดี่ยว: คุมโลก | client: รับ snapshot มาวาด
    for(let i=enemies.length-1;i>=0;i--)updateEnemy(enemies[i],dt);
    for(const b of [...bosses])updateBoss(b,dt);
