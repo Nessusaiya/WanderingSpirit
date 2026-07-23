@@ -777,8 +777,8 @@ const JOBS2={
   ult:{n:'สายฝนแห่งความตาย',cd:45,d:'ระดมยิงศัตรูรอบตัวต่อเนื่อง 3 วิ'}},
  priest:{n:'นักบุญแสงทอง',c:'#ffeda0',cap:100,atkJ:1.1,healJ:1.6,partyHeal:30,
   desc:'ฮีลตัวเองพ่วงให้เพื่อนใกล้ๆ 30% (co-op)',
-  skill2:{n:'วงแหวนชำระบาป',cd:9,d:'วงฮีล/ล้างสถานะขยายออก + โดนศัตรูในวงก็เจ็บด้วย (30 St)'},
-  ult:{n:'ปาฏิหาริย์สุดท้าย',cd:60,d:'ฮีลเต็ม + อมตะชั่วคราว 4 วิ (co-op ฮีลทีมด้วย)'}},
+  skill2:{n:'วงแหวนชำระบาป',cd:9,d:'ฮีลตัวเอง/ทีม + ล้างสถานะ + ระเบิดแสงศักดิ์สิทธิ์รอบตัว 3 ระลอก (ดาเมจแรง) (30 St)'},
+  ult:{n:'ปาฏิหาริย์สุดท้าย',cd:60,d:'ฮีลเต็ม(ทีม) + อมตะ 4 วิ + โนวาแสงมหาศาลใส่ศัตรูรอบตัว'}},
  summoner:{n:'เจ้าแห่งวิญญาณ',c:'#e0a0ff',cap:100,sumJ:3.2,
   desc:'ปลดล็อกวิญญาณตนที่ 4 ที่ Jb.70',
   skill2:{n:'เรียกทัพวิญญาณ',cd:12,d:'วิญญาณเสริมชั่วคราว 2 ตน นาน 8 วิ (30 St)'},
@@ -2440,11 +2440,14 @@ function useSkill2(){
   addFx(P.x,P.y,'#a0e880',14,140);
  }else if(P.job==='priest'){
   if(P.st<30){tired();return}P.st-=30;P.skill2Cd=J.skill2.cd*cdMul();sfx('lvl');
-  const heal=maxHp()*.2;
+  const heal=maxHp()*.22;
   P.hp=Math.min(maxHp(),P.hp+heal);P.poisonT=P.burnT=P.slowT=0;
   partyHealPulse(heal*(J.partyHeal||0)/100);
-  for(const e of playerTargets())if(dist(P,e)<110+e.r)hitEnemy(e,1.1,false,'skill');
-  addFx(P.x,P.y,'#ffeda0',24,150);
+  // ⚡ วงแหวนชำระบาป: ฮีลตัวเอง/ทีม + ระเบิดแสงศักดิ์สิทธิ์รอบตัวทันที (ดาเมจแรง) + วงแสงตามอีก 2 ระลอก
+  for(const e of playerTargets())if(dist(P,e)<150+e.r)hitEnemy(e,2.4,false,'skill');
+  for(let i=0;i<2;i++)zones.push({x:P.x,y:P.y,r:120+i*40,t:.35+i*.35,dur:.35+i*.35,dmg:1.6,col:'#ffeda0',friendly:true,mine:true});
+  game.shake=Math.max(game.shake,5);addFx(P.x,P.y,'#ffeda0',30,180);
+  for(let i=0;i<12;i++){const a=i/12*TAU;addFx(P.x+Math.cos(a)*140,P.y+Math.sin(a)*140,'#fff0c0',2,50)}
  }else if(P.job==='summoner'){
   if(P.st<30){tired();return}P.st-=30;P.skill2Cd=J.skill2.cd*cdMul();P.tempSummonT=8;sfx('boss');
   toast('เรียกทัพวิญญาณ! +2 ตน (8 วิ)','#e0a0ff');
@@ -2474,7 +2477,12 @@ function useUlt(){
  }else if(P.job==='priest'){
   P.ultBuffT=4;P.hp=maxHp();P.poisonT=P.burnT=P.slowT=0;
   partyHealPulse(maxHp()*0.5);
-  toast('ปาฏิหาริย์สุดท้าย! อมตะ 4 วิ','#ffeda0');addFx(P.x,P.y,'#ffeda0',30,200);
+  // ✨ ปาฏิหาริย์สุดท้าย: อมตะ 4 วิ + ฮีลเต็ม (ทีม) + โนวาแสงศักดิ์สิทธิ์มหาศาลใส่ศัตรูรอบตัว
+  for(const e of playerTargets())if(dist(P,e)<230+e.r)hitEnemy(e,5,false,'skill');
+  for(let i=0;i<4;i++)zones.push({x:P.x+rnd(-110,110),y:P.y+rnd(-110,110),r:85,t:.4+i*.28,dur:.4+i*.28,dmg:2.4,col:'#fff0c0',friendly:true,mine:true});
+  game.shake=Math.max(game.shake,14);
+  toast('ปาฏิหาริย์สุดท้าย! อมตะ 4 วิ + ล้างบาปมหาศาล','#ffeda0');addFx(P.x,P.y,'#ffeda0',44,260);
+  for(let i=0;i<20;i++){const a=i/20*TAU;addFx(P.x+Math.cos(a)*200,P.y+Math.sin(a)*200,'#fff',2,60)}
  }else if(P.job==='summoner'){
   P.ultBuffT=10;toast('กองทัพผีสาง! วิญญาณดาเมจ x2 (10 วิ)','#e0a0ff');
   summons.forEach(s=>addFx(s.x,s.y,'#e0a0ff',14,150));
