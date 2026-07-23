@@ -168,7 +168,9 @@
 <div id="hotbar" style="display:none">
   <div class="slot">ขวดวิญญาณ [1]<b id="flaskSlot">3/3</b></div>
   <div class="slot">ไอเท็มหีบ [E]<b id="utilSlot">-</b></div>
-  <div class="slot">สกิล [R]<b id="skillSlot">-</b></div>
+  <div class="slot">✦ สกิล [R]<b id="skillSlot">-</b></div>
+  <div class="slot" id="slotQ" style="display:none">✧ สกิล [Q]<b id="skill2Slot">-</b></div>
+  <div class="slot" id="slotT" style="display:none">★ อัลติ [T]<b id="ultSlot">-</b></div>
   <div class="slot">กลิ้งหลบ<b>Space</b></div>
   <div class="slot">โจมตี (ค้าง=ชาร์จ)<b>คลิกซ้าย / J</b></div>
   <div class="slot">โจมตีหนัก<b id="heavySlot">คลิกขวา</b></div>
@@ -1623,10 +1625,11 @@ function buildSnap(){
  const zs=zones.filter(z=>!z.remote).map(z=>[Math.round(z.x),Math.round(z.y),Math.round(z.r),+(z.t/z.dur).toFixed(2),z.col,z.friendly?1:0,z.rock?1:0]); // ไม่ส่งโซนที่รีเลย์มาจากเพื่อน (กันซ้ำกับ pzone)
  const ds=drops.map(d=>[d.nid||(d.nid=NID++),Math.round(d.x),Math.round(d.y),d.id,d.rare?1:0]);
  const eo=energyOrbs.map(o=>[Math.round(o.x),Math.round(o.y),o.nid]);
+ const le=lavaErupt.map(e=>[Math.round(e.x),Math.round(e.y),+e.t.toFixed(2),e.nid]); // กับดักลาวา (ให้เพื่อนเห็น+โดน)
  const cs=chests.map(c=>[nid(c),Math.round(c.x),Math.round(c.y),c.trap?1:0,c.opened?1:0,c.secret?1:0,c.item||'']);
  // ผู้เล่นคนอื่น (ยกเว้นผู้รับ — client จะ merge เอง)
  const rem={};for(const k in net.remote){const r=net.remote[k];rem[k]={x:Math.round(r.x),y:Math.round(r.y),face:r.face,hp:r.hp,mhp:r.mhp,job:r.job,lvl:r.lvl,atkT:r.atkT,rollT:r.rollT,mv:r.mv,name:r.name,last:r.last,downed:r.downed?1:0}}
- return {t:'snap',e:es,b:bs,p:ps,z:zs,d:ds,o:eo,c:cs,
+ return {t:'snap',e:es,b:bs,p:ps,z:zs,d:ds,o:eo,c:cs,le,
   host:localPlayerState(),rem,
   ph:game.phase,dw:+(game.dw||0).toFixed(2),clk:Math.round(game.clock||0),
   wx:game.weather?[game.weather.type,+game.weather.intensity.toFixed(2),+game.weather.wind.toFixed(2),+game.weather.flash.toFixed(2)]:null,
@@ -1664,6 +1667,7 @@ function applySnap(d){
  for(const z of myZones)zones.push(z);
  drops=d.d.map(a=>({nid:a[0],x:a[1],y:a[2],id:a[3],rare:a[4]===1,t:0}));
  energyOrbs=d.o.map(a=>({x:a[0],y:a[1],t:5,nid:a[2]}));
+ if(d.le)lavaErupt=d.le.map(a=>({x:a[0],y:a[1],t:a[2],nid:a[3]})); // กับดักลาวาจาก host (client วาด + host จัดการดาเมจให้)
  if(d.c)chests=d.c.map(a=>({nid:a[0],x:a[1],y:a[2],trap:a[3]===1,opened:a[4]===1,secret:a[5]===1,item:a[6]||null}));
  // ผู้เล่นคนอื่น = host + rem (ยกเว้นตัวเราเอง) — ยกตำแหน่งสมูธ (_dx/_dy) จากรอบก่อนมาต่อ ไม่งั้นเพื่อนจะกระตุก (snapshot สร้าง object ใหม่ทุกครั้ง เลยต้องอุ้ม _dx มาเอง)
  const oldRem=net.remote;net.remote={};
@@ -1823,6 +1827,8 @@ function clientHazards(dt){
    zones.splice(i,1);
   }
  }
+ // กับดักลาวา (client): เดินเวลา t ต่อเองระหว่าง snapshot ให้ลาวาขยายลื่น (ดาเมจ host จัดการให้)
+ for(let i=lavaErupt.length-1;i>=0;i--){lavaErupt[i].t+=dt;if(lavaErupt[i].t>=LAVA_DUR)lavaErupt.splice(i,1)}
 }
 function startCoopClient(mode){
  net._pendingMode=mode;
@@ -2165,7 +2171,7 @@ function respawnAtBonfire(){ // ใช้ทั้งตอนกดฟื้น
 }
 function forceTeamRespawn(){ // host เท่านั้น: ทั้งทีมล้มพร้อมกัน — บังคับฟื้นทุกคนที่กองไฟ + รีเซ็ตวันใหม่
  game.clock=15;game.phase='day';
- spawnEnemies();spawnChests();projs=[];zones=[];
+ spawnEnemies();spawnChests();spawnLavaTraps();lavaErupt=[];projs=[];zones=[];
  bosses.forEach(b=>{if(b.active)resetBoss(b)});
  respawnAtBonfire();
  bcast({t:'teamWipe'});
@@ -2572,6 +2578,45 @@ function spawnChests(){
   }
  }
 }
+// ---------- กับดักลาวาซ่อนตัว (ไบโอมปราสาทเถ้า) — เกิดตอนพัก โอกาส 30% ต่อจุด • เหยียบแล้วเตือน (เสียง+วงแดง) ก่อนลาวาพุ่งขยายวงใหญ่มาก 2-3 วิ ----------
+let lavaTraps=[], lavaErupt=[];
+const LAVA_WARN=0.6, LAVA_DUR=2.9, LAVA_MAXR=280; // เตือน 0.6 วิ → ลาวาขยายจนถึงรัศมี 280 (ใหญ่มาก) รวม ~2.9 วิ
+function spawnLavaTraps(){ // host/เดี่ยว: วางกับดักล่องหนในไบโอม 5 (ปราสาทเถ้า)
+ lavaTraps=[];
+ for(let i=0;i<16;i++){
+  if(Math.random()>=0.30)continue; // โอกาสเกิดกับดัก 30% ต่อจุด (สุ่ม)
+  for(let t2=0;t2<24;t2++){
+   const a=Math.random()*TAU, rr=RINGS[5]+3+Math.random()*(RINGS[6]-RINGS[5]-6);
+   const tx=Math.round(WC+Math.cos(a)*rr), ty=Math.round(WC+Math.sin(a)*rr);
+   if(tileAt(tx,ty)!==0)continue; // เฉพาะพื้นเดินได้
+   if(CPS.some(c=>(c.x-tx)**2+(c.y-ty)**2<10*10))continue; // ไม่วางทับกองไฟ
+   lavaTraps.push({x:tx*TILE+16,y:ty*TILE+16});
+   break;
+  }
+ }
+}
+function triggerLavaEruption(x,y){
+ lavaErupt.push({x,y,t:0,nid:NID++});
+ sfx('boss');game.shake=Math.max(game.shake,7);
+ announce('⚠ กับดักลาวา!','#ff5020');
+}
+function updateLavaTraps(dt){ // host/เดี่ยวเท่านั้น
+ // เหยียบกับดัก → ปะทุ
+ for(let i=lavaTraps.length-1;i>=0;i--){
+  const tr=lavaTraps[i];
+  for(const pl of allPlayers()){if(Math.hypot(pl.x-tr.x,pl.y-tr.y)<26){triggerLavaEruption(tr.x,tr.y);lavaTraps.splice(i,1);break}}
+ }
+ // อัพเดตการปะทุ + ดาเมจ (เฉพาะช่วงลาวาพุ่ง โดนตามรัศมีที่ขยาย)
+ for(let i=lavaErupt.length-1;i>=0;i--){
+  const e=lavaErupt[i];e.t+=dt;
+  if(e.t>=LAVA_DUR){lavaErupt.splice(i,1);continue}
+  if(e.t>LAVA_WARN){
+   const rNow=lavaRadius(e.t);
+   for(const pl of allPlayers())if(Math.hypot(pl.x-e.x,pl.y-e.y)<rNow)hurtTarget(pl,300*dt,{burn:20}); // ยืนในลาวา = เจ็บหนักต่อเนื่อง
+  }
+ }
+}
+function lavaRadius(t){return t<=LAVA_WARN?0:LAVA_MAXR*Math.min(1,(t-LAVA_WARN)/(LAVA_DUR-LAVA_WARN-0.5))} // ขยายจาก 0 → 280 แล้วคงไว้ช่วงท้าย
 function openChest(c){
  if(c.opened)return;
  if(c.secret){openGoldenChest(c);return} // หีบทอง (ห้องลับ) — ไม่ใช่หีบไอเท็มหีบ/กับดักแบบทั่วไป
@@ -4268,7 +4313,7 @@ function doRest(silent){
  P.poisonT=P.burnT=P.slowT=0;
  if(isClient()){sfx('flask');return} // co-op client: แค่ฟื้นตัวเอง โลกเป็นของ host
  if(game.phase!=='day'){game.clock=15;if(!silent)toast('หลับข้างกองไฟยาวจนรุ่งเช้า…','#ffd060')} // พัก = ข้ามคืน
- spawnEnemies();spawnChests();projs=[];zones=[];
+ spawnEnemies();spawnChests();spawnLavaTraps();lavaErupt=[];projs=[];zones=[];
  bosses.forEach(b=>{if(b.active)resetBoss(b)});
  saveGame();sfx('flask');
 }
@@ -4420,8 +4465,9 @@ function startGame(mode,fresh,coopClient){
   if(!(coop()&&curWorld))hostOpenedSecrets=new Set();
   for(const idx of hostOpenedSecrets)applySecretOpen(idx); // เปิดกำแพงห้องลับที่ทีมเคยเจอมาก่อนหน้านี้
   spawnEnemies();initBosses();
-  chests=[];spawnChests();
+  chests=[];spawnChests();spawnLavaTraps();
  }
+ lavaTraps=lavaTraps||[];lavaErupt=[];
  game.finalFight=false;game.visionMul=1;game.invertT=0;game.compassT=0;game.lanternT=0;game.decoy=null;
  game.clock=20;game.phase='day';game.dw=undefined; // เริ่มเกมตอนรุ่งเช้าเสมอ
  atRallyBoss=null;net.bossGather=null;document.getElementById('bossRallyPanel').style.display='none';
@@ -5788,6 +5834,24 @@ function render(){
   cx.strokeStyle=z.col;cx.lineWidth=2;cx.beginPath();cx.arc(sx,sy,z.r,0,TAU);cx.stroke();
   cx.fillStyle=z.col+'30';cx.beginPath();cx.arc(sx,sy,z.r*pr,0,TAU);cx.fill();
  }
+ // ---- กับดักลาวา: เฟสเตือน (วงแดงอันตราย+⚠) แล้วลาวาพุ่งขยายวงใหญ่ ----
+ for(const e of lavaErupt){
+  const [sx,sy]=W2S(e.x,e.y);
+  if(e.t<=LAVA_WARN){ // เฟสเตือน — วงแดงกะพริบขนาดสุดท้าย + คำเตือน (ยังไม่โดน)
+   const pu=.4+.6*Math.abs(Math.sin(e.t*18));
+   cx.strokeStyle=`rgba(255,50,20,${.5+.4*pu})`;cx.lineWidth=5;cx.setLineDash([14,10]);
+   cx.beginPath();cx.arc(sx,sy,LAVA_MAXR,0,TAU);cx.stroke();cx.setLineDash([]);
+   cx.fillStyle=`rgba(255,60,20,${.1*pu})`;cx.beginPath();cx.arc(sx,sy,LAVA_MAXR,0,TAU);cx.fill();
+   cx.font='bold 22px sans-serif';cx.textAlign='center';cx.fillStyle='#ff4020';cx.fillText('⚠',sx,sy+7);cx.textAlign='start';
+  }else{ // เฟสลาวาพุ่ง
+   const r=lavaRadius(e.t);
+   const g=cx.createRadialGradient(sx,sy,r*.2,sx,sy,r);
+   g.addColorStop(0,'rgba(255,200,40,.85)');g.addColorStop(.5,'rgba(255,90,20,.8)');g.addColorStop(1,'rgba(150,20,10,.6)');
+   cx.fillStyle=g;cx.beginPath();cx.arc(sx,sy,r,0,TAU);cx.fill();
+   cx.strokeStyle=`rgba(255,220,80,${.6+.3*Math.sin(game.time*10)})`;cx.lineWidth=4;cx.beginPath();cx.arc(sx,sy,r,0,TAU);cx.stroke();
+   for(let i=0;i<6;i++){const a=Math.random()*TAU,rr=Math.random()*r;cx.fillStyle='rgba(255,180,40,.7)';cx.beginPath();cx.arc(sx+Math.cos(a)*rr,sy+Math.sin(a)*rr,2+Math.random()*3,0,TAU);cx.fill()} // ประกายลาวาเดือด
+  }
+ }
  // ---- มอนสเตอร์ ----
  for(const e of enemies){
   if(e.hidden||e.dormant)continue;
@@ -6109,6 +6173,18 @@ function render(){
  document.getElementById('vignette').classList.toggle('lowhp',lowHp);
  if(lowHp&&game.time>=(game.lowHpSfxNext||0)){game.lowHpSfxNext=game.time+1.1;sfx('lowhp')}
  document.getElementById('skillSlot').textContent=Jh.skill?(P.skillCd>0?Math.ceil(P.skillCd)+'s':Jh.skill.n):'-';
+ // ช่องสกิล Q/T (คลาส 2) — โชว์เฉพาะตอนปลดล็อกแล้ว พร้อมนับคูลดาวน์
+ const J2=JOBS2[P.job];
+ const showQT=P.job2&&J2;
+ document.getElementById('slotQ').style.display=showQT?'block':'none';
+ document.getElementById('slotT').style.display=showQT?'block':'none';
+ if(showQT){
+  const q=document.getElementById('skill2Slot'),u=document.getElementById('ultSlot');
+  q.textContent=P.skill2Cd>0?Math.ceil(P.skill2Cd)+'s':J2.skill2.n;
+  q.style.color=P.skill2Cd>0?'#e08060':'#e8e0d0';
+  u.textContent=P.ultCd>0?Math.ceil(P.ultCd)+'s':J2.ult.n;
+  u.style.color=P.ultCd>0?'#e08060':(P.ultBuffT>0?'#7ad080':'#e8e0d0');
+ }
  document.getElementById('utilSlot').textContent=P.util?(P.util.cd>0?Math.ceil(P.util.cd)+'s':UTILS[P.util.id].n.slice(2).trim()):'-';
  document.getElementById('heavySlot').textContent=(P.heavyCd||0)>0?Math.ceil(P.heavyCd)+'s':'คลิกขวา';
  document.getElementById('petBar').style.display=P.pet?'block':'none';
@@ -6161,6 +6237,7 @@ function loopBody(ts){
    updateProjs(dt);
    updateEnergyOrbs(dt);
    updateHazardTraps(dt);
+   updateLavaTraps(dt);
   }
   netUpdate(dt);
   if(game.state==='play'){ // ตอนตาย กล้องหยุดนิ่งอยู่ที่จุดตาย ไม่ต้องขยับตาม
